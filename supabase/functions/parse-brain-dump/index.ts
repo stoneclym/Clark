@@ -59,11 +59,15 @@ Deno.serve(async (req) => {
     ],
   })
 
+  let rawText = response.content[0].type === 'text' ? response.content[0].text : '{}'
+  // Strip markdown code fences that models sometimes add despite instructions
+  rawText = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+
   let parsed: Record<string, unknown>
   try {
-    parsed = JSON.parse(response.content[0].type === 'text' ? response.content[0].text : '{}')
+    parsed = JSON.parse(rawText)
   } catch {
-    return new Response(JSON.stringify({ error: 'Parse failed' }), {
+    return new Response(JSON.stringify({ error: 'Parse failed', raw: rawText }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

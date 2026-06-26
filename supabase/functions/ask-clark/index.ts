@@ -8,6 +8,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const tools: Anthropic.Tool[] = [
+  {
+    name: 'create_task',
+    description: 'Add a new task to the task list. Use this whenever the user asks you to add, note, or remember a task.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title: { type: 'string', description: 'Task title' },
+        category: { type: 'string', enum: ['Class', 'Club', 'College', 'Personal'], description: 'Category' },
+        tag: { type: 'string', description: 'Short tag like the class name or club' },
+        due_date: { type: 'string', description: 'Natural language due date: today, tomorrow, Friday, next class, etc.' },
+        priority: { type: 'boolean', description: 'Whether this is a top priority task' },
+      },
+      required: ['title'],
+    },
+  },
+  {
+    name: 'mark_task_done',
+    description: 'Mark a task as completed. Matches by partial title.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title_match: { type: 'string', description: 'Part of the task title to match (case-insensitive)' },
+      },
+      required: ['title_match'],
+    },
+  },
+]
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -23,18 +52,18 @@ Deno.serve(async (req) => {
   )
 
   const [tasksRes, gradesRes, emailsRes, clubsRes, settingsRes] = await Promise.all([
-    supabase.from('tasks').select('title, category, tag, due_date, priority, done').eq('done', false).limit(30),
+    supabase.from('tasks').select('id, title, category, tag, due_date, priority, done').eq('done', false).limit(30),
     supabase.from('grades').select('class_name, score, percentage, note').order('class_order'),
     supabase.from('emails').select('from_name, subject, snippet, received_at').order('received_at', { ascending: false }).limit(5),
     supabase.from('clubs').select('name, role, next_meeting, club_tasks(task_text, done)').order('display_order'),
-    supabase.from('settings').select('first_day, first_day_type, a_schedule, b_schedule, cape_fear_classes').limit(1).single(),
+    supabase.from('settings').select('first_day, first_day_type, a_schedule, b_schedule, cape_fear_classes').order('created_at', { ascending: false }).limit(1),
   ])
 
   const tasks = tasksRes.data ?? []
   const grades = gradesRes.data ?? []
   const emails = emailsRes.data ?? []
   const clubs = clubsRes.data ?? []
-  const settings = settingsRes.data
+  const settings = settingsRes.data?.[0]
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -42,7 +71,7 @@ Deno.serve(async (req) => {
 Today is ${today}.
 
 PENDING TASKS (${tasks.length}):
-${tasks.map(t => `- ${t.title} [${t.tag || t.category}] due ${t.due_date || 'no date'}${t.priority ? ' ★ priority' : ''}`).join('\n') || 'None'}
+${tasks.map(t => `- [${t.id}] ${t.title} [${t.tag || t.category}] due ${t.due_date || 'no date'}${t.priority ? ' ★ priority' : ''}`).join('\n') || 'None'}
 
 GRADES:
 ${grades.map(g => `- ${g.class_name}: ${g.score || '—'} (${g.percentage || '—'})${g.note ? ' — ' + g.note : ''}`).join('\n') || 'None'}
@@ -57,19 +86,77 @@ ${clubs.map(c => {
 }).join('\n') || 'None'}
 `.trim()
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 600,
-    system: `You are Clark, a smart personal assistant for a high school senior who is an IB student and multi-club leader. You know their schedule, tasks, grades, inbox, and clubs.
+  const systemPrompt = `You are Clark, a smart personal assistant for a high school senior who is an IB student and multi-club leader. You know their schedule, tasks, grades, inbox, and clubs.
 
-Be conversational, concise, and genuinely helpful. Use short sentences. When listing things, use bullet points. You can suggest adding tasks, note urgent deadlines, and give direct advice. Speak like a knowledgeable friend — not a formal assistant.
+Be conversational, concise, and genuinely helpful. Use short sentences. When listing things, use bullet points. Speak like a knowledgeable friend — not a formal assistant.
+
+IMPORTANT: When the user asks you to add a task, create a reminder, or "note" something — you MUST call the create_task tool to actually save it. When they say something is done or finished, call mark_task_done. Never claim you've done something without calling the tool.
 
 Current context:
-${context}`,
+${context}`
+
+  let response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 600,
+    system: systemPrompt,
+    tools,
     messages,
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  // Process tool calls in a loop (Claude may chain multiple tool calls)
+  while (response.stop_reason === 'tool_use') {
+    const toolResults: Array<{type: 'tool_result'; tool_use_id: string; content: string}> = []
+
+    for (const block of response.content) {
+      if (block.type !== 'tool_use') continue
+
+      const input = block.input as Record<string, unknown>
+      let result = ''
+
+      if (block.name === 'create_task') {
+        const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
+        const { error } = await supabase.from('tasks').insert({
+          title: input.title as string,
+          category: (input.category as string) || 'Personal',
+          tag: (input.tag as string) || null,
+          due_date: (input.due_date as string) || null,
+          priority: (input.priority as boolean) || false,
+          priority_rank: input.priority ? (count || 0) + 1 : null,
+          source: 'Ask Clark',
+        })
+        result = error ? `Error creating task: ${error.message}` : `Task "${input.title}" added successfully.`
+      }
+
+      if (block.name === 'mark_task_done') {
+        const { error, count } = await supabase.from('tasks')
+          .update({ done: true })
+          .ilike('title', `%${input.title_match as string}%`)
+          .eq('done', false)
+          .select('*', { count: 'exact' })
+        result = error
+          ? `Error: ${error.message}`
+          : count
+            ? `Marked ${count} task(s) as done.`
+            : 'No matching tasks found.'
+      }
+
+      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result })
+    }
+
+    response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 600,
+      system: systemPrompt,
+      tools,
+      messages: [
+        ...messages,
+        { role: 'assistant' as const, content: response.content },
+        { role: 'user' as const, content: toolResults },
+      ],
+    })
+  }
+
+  const text = response.content.find(b => b.type === 'text')?.text ?? ''
 
   return new Response(JSON.stringify({ text }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
