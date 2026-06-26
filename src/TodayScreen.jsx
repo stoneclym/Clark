@@ -205,9 +205,7 @@ function BrainDumpCard() {
 }
 
 // ─── Tasks Card ─────────────────────────────────────────────────
-function TasksCard({ filter, onFilter }) {
-  const { tasks, toggleTask } = useTasks()
-
+function TasksCard({ tasks, toggleTask, filter, onFilter }) {
   const filtered = tasks.filter(t =>
     filter === 'All' ? true : filter === 'Priority' ? t.priority : t.category === filter
   )
@@ -402,7 +400,7 @@ export default function TodayScreen({ filter, onFilter, onCloseQuick }) {
     <div onClick={onCloseQuick} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
       <DashboardCard priorities={priorities} toggleTask={toggleTask} />
       <BrainDumpCard />
-      <TasksCard filter={filter} onFilter={onFilter} />
+      <TasksCard tasks={tasks} toggleTask={toggleTask} filter={filter} onFilter={onFilter} />
       <CalendarCard />
       <GradesCard />
       <InboxCard />
