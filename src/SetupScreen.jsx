@@ -9,7 +9,6 @@ const STEP_META = [
   { title: 'A-day schedule', desc: 'Classes and period times' },
   { title: 'B-day schedule', desc: 'Classes and period times' },
   { title: 'Cape Fear classes', desc: 'Daily, by semester' },
-  { title: 'Connect Canvas', desc: 'Personal access token' },
   { title: 'Connect Gmail', desc: 'Forwarded school email' },
 ]
 
@@ -66,10 +65,6 @@ export default function SetupScreen({ onComplete }) {
   const [capeFear1, setCapeFear1] = useState('')
   const [capeFear2, setCapeFear2] = useState('')
 
-  // Step 6: Canvas
-  const [canvasUrl, setCanvasUrl] = useState('')
-  const [canvasToken, setCanvasToken] = useState('')
-
   // Save
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -108,8 +103,6 @@ export default function SetupScreen({ onComplete }) {
         a_schedule: aSchedule,
         b_schedule: bSchedule,
         cape_fear_classes: [capeFear1, capeFear2].filter(Boolean),
-        canvas_url: canvasUrl || null,
-        canvas_token: canvasToken || null,
       })
       if (error) throw error
       onComplete()
@@ -117,7 +110,7 @@ export default function SetupScreen({ onComplete }) {
       setSaveError(err.message || 'Failed to save. Try again.')
       setSaving(false)
     }
-  }, [firstDay, firstDayType, noSchoolDates, aSchedule, bSchedule, capeFear1, capeFear2, canvasUrl, canvasToken, onComplete])
+  }, [firstDay, firstDayType, noSchoolDates, aSchedule, bSchedule, capeFear1, capeFear2, onComplete])
 
   const progress = (step + 1) / STEP_META.length
 
@@ -142,7 +135,7 @@ export default function SetupScreen({ onComplete }) {
         </div>
         <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.55, margin: '10px 0 0' }}>
           {step === 0
-            ? 'Eight quick steps — about five minutes. Clark will know your schedule, your classes, and your inbox by the end.'
+            ? 'Seven quick steps — about five minutes. Clark will know your schedule, your classes, and your inbox by the end.'
             : STEP_META[step].desc}
         </p>
 
@@ -203,13 +196,6 @@ export default function SetupScreen({ onComplete }) {
           />
         )}
         {step === 6 && (
-          <StepCanvas
-            url={canvasUrl} setUrl={setCanvasUrl}
-            token={canvasToken} setToken={setCanvasToken}
-            onNext={() => setStep(7)}
-          />
-        )}
-        {step === 7 && (
           <StepGmail
             saving={saving} error={saveError}
             onFinish={finish}
@@ -547,51 +533,6 @@ function StepCapeFear({ c1, setC1, c2, setC2, onNext }) {
   )
 }
 
-function StepCanvas({ url, setUrl, token, setToken, onNext }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{
-        background: 'var(--cardAlt)', borderRadius: 14, padding: '14px 16px',
-        fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6,
-        border: '1px solid var(--border)',
-      }}>
-        In Canvas, go to <strong style={{ color: 'var(--text)' }}>Account → Settings → Approved Integrations</strong>, then generate a personal access token with read permissions.
-      </div>
-
-      <div>
-        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-          Canvas URL
-        </label>
-        <input
-          type="url"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          placeholder="https://myschool.instructure.com"
-          style={inputStyle}
-        />
-      </div>
-
-      <div>
-        <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: '0.05em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-          Access token
-        </label>
-        <input
-          type="password"
-          value={token}
-          onChange={e => setToken(e.target.value)}
-          placeholder="Paste your token here"
-          style={inputStyle}
-        />
-        <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 6 }}>
-          Stored securely in Supabase. Never leaves the server.
-        </div>
-      </div>
-
-      <button onClick={onNext} style={{ ...btnPrimary, marginTop: 4 }}>Continue</button>
-      <button onClick={onNext} style={btnSecondary}>Skip for now</button>
-    </div>
-  )
-}
 
 function StepGmail({ saving, error, onFinish }) {
   return (
