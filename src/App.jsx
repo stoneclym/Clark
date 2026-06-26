@@ -32,6 +32,21 @@ export default function App() {
   const [hasCredential, setHasCredential] = useState(false)
 
   useEffect(() => {
+    // Handle Microsoft OAuth callback (?code=...&state=outlook_auth)
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    const state = params.get('state')
+    if (code && state === 'outlook_auth') {
+      window.history.replaceState({}, '', window.location.pathname)
+      supabase.functions.invoke('microsoft-callback', {
+        body: { code, redirect_uri: window.location.origin },
+      }).then(() => {
+        setAuthed(true)
+        setScreen('today')
+      })
+      return
+    }
+
     const credId = getStoredCredentialId()
     setHasCredential(!!credId)
     if (!credId) {

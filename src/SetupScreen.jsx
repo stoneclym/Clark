@@ -9,7 +9,7 @@ const STEP_META = [
   { title: 'A-day schedule', desc: 'Classes and period times' },
   { title: 'B-day schedule', desc: 'Classes and period times' },
   { title: 'Cape Fear classes', desc: 'Daily, by semester' },
-  { title: 'Connect Gmail', desc: 'Forwarded school email' },
+  { title: 'Connect Outlook', desc: 'Read school emails in Clark' },
 ]
 
 const DEFAULT_PERIODS = [
@@ -534,42 +534,48 @@ function StepCapeFear({ c1, setC1, c2, setC2, onNext }) {
 }
 
 
+const MICROSOFT_CLIENT_ID = 'c92f4bf4-9da6-4d38-b49d-715a2bee4beb'
+const OUTLOOK_SCOPES = [
+  'https://graph.microsoft.com/Mail.Read',
+  'offline_access',
+  'User.Read',
+].join(' ')
+
 function StepGmail({ saving, error, onFinish }) {
+  const connectOutlook = () => {
+    const params = new URLSearchParams({
+      client_id: MICROSOFT_CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: window.location.origin,
+      scope: OUTLOOK_SCOPES,
+      state: 'outlook_auth',
+      response_mode: 'query',
+    })
+    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{
         background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 20,
-        padding: '22px', boxShadow: '0 1px 2px rgba(40,36,28,0.05)',
+        padding: '28px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center', boxShadow: '0 1px 2px rgba(40,36,28,0.05)',
       }}>
-        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>
-          Forward school email to Gmail
+        <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
+          <rect width="48" height="48" rx="10" fill="#0078D4"/>
+          <path d="M8 14h32v20a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V14z" fill="#fff" opacity=".15"/>
+          <path d="M8 14l16 12L40 14" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <rect x="8" y="14" width="32" height="20" rx="2" stroke="#fff" strokeWidth="2" fill="none"/>
+        </svg>
+        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 18, fontWeight: 600, marginTop: 14, color: 'var(--text)' }}>
+          Connect Outlook
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[
-            'In your school Outlook, go to Settings → Mail → Forwarding',
-            'Add your Gmail address as a forwarding address',
-            'In Gmail, create a filter: from your school domain → apply label "School"',
-            'Clark reads that label automatically via the Gmail API',
-          ].map((step, i) => (
-            <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{
-                width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                background: 'var(--accentSoft)', color: 'var(--accentText)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 700, marginTop: 1,
-              }}>
-                {i + 1}
-              </div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>{step}</div>
-            </div>
-          ))}
+        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 6, lineHeight: 1.55, maxWidth: 280 }}>
+          Sign in with your Microsoft account to pull your school emails directly into Clark.
         </div>
-        <div style={{
-          marginTop: 16, padding: '10px 14px', borderRadius: 10,
-          background: 'var(--accentSoft)', fontSize: 12.5, color: 'var(--accentText)', lineHeight: 1.5,
-        }}>
-          You can set this up later. Clark will show a reminder in your inbox card.
-        </div>
+        <button onClick={connectOutlook} style={{ ...btnPrimary, marginTop: 20 }}>
+          Sign in with Microsoft
+        </button>
       </div>
 
       {error && (
@@ -580,9 +586,16 @@ function StepGmail({ saving, error, onFinish }) {
 
       <button
         onClick={!saving ? onFinish : undefined}
-        style={{ ...btnPrimary, opacity: saving ? 0.7 : 1, cursor: saving ? 'default' : 'pointer' }}
+        style={{ ...btnSecondary, opacity: saving ? 0.7 : 1 }}
       >
-        {saving ? 'Setting up Clark…' : 'Finish setup'}
+        {saving ? 'Setting up Clark…' : 'Skip — set up later'}
+      </button>
+
+      <button
+        onClick={!saving ? onFinish : undefined}
+        style={{ ...btnPrimary, opacity: saving ? 0.7 : 1, cursor: saving ? 'default' : 'pointer', background: 'var(--cardAlt)', color: 'var(--text)', border: '1px solid var(--border)', boxShadow: 'none' }}
+      >
+        {saving ? 'Finishing…' : 'Finish setup without email'}
       </button>
     </div>
   )

@@ -319,6 +319,7 @@ function InboxCard() {
   const { emails, draftReply } = useEmails()
   const [drafts, setDrafts] = useState({})
   const [loading, setLoading] = useState({})
+  const [syncing, setSyncing] = useState(false)
 
   const handleDraftReply = async (emailId) => {
     if (drafts[emailId]) { setDrafts(d => ({ ...d, [emailId]: null })); return }
@@ -331,11 +332,35 @@ function InboxCard() {
     }
   }
 
+  const syncOutlook = async () => {
+    setSyncing(true)
+    try {
+      await supabase.functions.invoke('sync-outlook')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <Label>Inbox</Label>
-        <div style={{ fontSize: 11, color: 'var(--faint)' }}>via Gmail</div>
+        <button
+          onClick={syncOutlook}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            fontSize: 11, fontWeight: 600, color: 'var(--accentText)',
+            background: 'var(--accentSoft)', border: 'none', borderRadius: 7,
+            padding: '4px 9px', cursor: syncing ? 'default' : 'pointer',
+            fontFamily: 'inherit', opacity: syncing ? 0.6 : 1,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }}>
+            <path d="M23 4v6h-6M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          {syncing ? 'Syncing…' : 'Sync Outlook'}
+        </button>
       </div>
       {emails.map(m => (
         <div key={m.id} style={{ padding: '14px 0', borderTop: '1px solid var(--border)' }}>
