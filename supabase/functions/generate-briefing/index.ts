@@ -3,13 +3,21 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
-Deno.serve(async () => {
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Gather context
   const [{ data: tasks }, { data: grades }, { data: settings }] = await Promise.all([
     supabase.from('tasks').select('*').eq('done', false).order('priority_rank'),
     supabase.from('grades').select('*').order('class_order'),
@@ -49,6 +57,6 @@ Do NOT use bullet points, headers, or markdown. Plain prose only.`,
     .single()
 
   return new Response(JSON.stringify(briefing), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 })

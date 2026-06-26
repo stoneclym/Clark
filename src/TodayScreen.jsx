@@ -125,7 +125,6 @@ function BrainDumpCard() {
   const [text, setText] = useState('')
   const [status, setStatus] = useState(null) // null | 'parsing' | 'done' | 'error'
   const [lastResult, setLastResult] = useState(null)
-  const [listening, setListening] = useState(false)
 
   const parse = async () => {
     if (!text.trim()) return
@@ -143,24 +142,11 @@ function BrainDumpCard() {
     }
   }
 
-  const startListening = () => {
-    if (!window.SpeechRecognition && !window.webkitSpeechRecognition) return
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    const recognition = new SR()
-    recognition.lang = 'en-US'
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.onresult = (e) => setText(prev => prev + ' ' + e.results[0][0].transcript)
-    recognition.onend = () => setListening(false)
-    recognition.start()
-    setListening(true)
-  }
-
   const taskCount = lastResult?.tasks?.length || 0
   const gradeCount = lastResult?.grades?.length || 0
   const summary = status === 'done' && lastResult
     ? `Parsed · ${[taskCount && `${taskCount} task${taskCount > 1 ? 's' : ''}`, gradeCount && `${gradeCount} grade${gradeCount > 1 ? 's' : ''}`].filter(Boolean).join(', ')}`
-    : 'Tell Clark anything and it distributes items automatically'
+    : 'Use your keyboard mic for voice, or type it out'
 
   return (
     <Card>
@@ -183,22 +169,18 @@ function BrainDumpCard() {
         <div style={{ fontSize: 11.5, color: status === 'error' ? '#E05252' : 'var(--muted)', lineHeight: 1.4 }}>
           {status === 'parsing' ? 'Parsing…' : status === 'error' ? 'Something went wrong — try again' : summary}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-          {text.trim() && (
-            <button onClick={parse} disabled={status === 'parsing'} style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accentText)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-              {status === 'parsing' ? 'Sending…' : '⌘↵ Send'}
-            </button>
-          )}
-          <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-            {listening && <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--accent)', animation: 'clarkPulse 2.4s ease-out infinite' }}/>}
-            <div onClick={startListening} style={{ position: 'relative', width: 52, height: 52, borderRadius: '50%', background: listening ? '#E05252' : 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(86,141,179,0.35)', cursor: 'pointer' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/>
-                <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
-              </svg>
-            </div>
-          </div>
-        </div>
+        <button
+          onClick={parse}
+          disabled={!text.trim() || status === 'parsing'}
+          style={{
+            fontSize: 13, fontWeight: 600, color: text.trim() ? 'var(--accentText)' : 'var(--faint)',
+            background: 'var(--accentSoft)', border: 'none', borderRadius: 10,
+            cursor: text.trim() ? 'pointer' : 'default', padding: '8px 16px',
+            fontFamily: 'inherit', flexShrink: 0,
+          }}
+        >
+          {status === 'parsing' ? 'Sending…' : 'Send'}
+        </button>
       </div>
     </Card>
   )

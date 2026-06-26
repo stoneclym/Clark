@@ -3,7 +3,16 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
   const { emailId } = await req.json()
 
   const supabase = createClient(
@@ -18,10 +27,12 @@ Deno.serve(async (req) => {
     .single()
 
   if (!email) {
-    return new Response(JSON.stringify({ error: 'Email not found' }), { status: 404 })
+    return new Response(JSON.stringify({ error: 'Email not found' }), {
+      status: 404,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 
-  // Gather task context for better replies
   const { data: tasks } = await supabase
     .from('tasks')
     .select('title, due_date, tag')
@@ -50,6 +61,6 @@ ${taskContext}`,
   const draft = response.content[0].type === 'text' ? response.content[0].text : ''
 
   return new Response(JSON.stringify({ draft }), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 })

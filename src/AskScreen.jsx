@@ -6,14 +6,12 @@ const GREETING = {
   text: "Hey — I'm Clark. Ask me anything about your schedule, tasks, grades, or inbox.",
 }
 
-export default function AskScreen({ dark, onBack }) {
+export default function AskScreen({ onBack }) {
   const [messages, setMessages] = useState([GREETING])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [listening, setListening] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
-  const recognitionRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -23,16 +21,15 @@ export default function AskScreen({ dark, onBack }) {
     const trimmed = text.trim()
     if (!trimmed || loading) return
 
-    const userMsg = { id: `u${Date.now()}`, role: 'user', text: trimmed }
     const history = [
       ...messages.filter(m => m.id !== 'g0').map(m => ({
         role: m.role === 'clark' ? 'assistant' : 'user',
-        content: m.list ? `${m.text}\n${m.list.map(li => `• ${li}`).join('\n')}` : m.text,
+        content: m.text,
       })),
       { role: 'user', content: trimmed },
     ]
 
-    setMessages(prev => [...prev, userMsg])
+    setMessages(prev => [...prev, { id: `u${Date.now()}`, role: 'user', text: trimmed }])
     setInput('')
     setLoading(true)
 
@@ -45,7 +42,7 @@ export default function AskScreen({ dark, onBack }) {
     } catch {
       setMessages(prev => [...prev, {
         id: `e${Date.now()}`, role: 'clark',
-        text: 'Sorry, I couldn\'t connect right now. Try again in a moment.',
+        text: 'Sorry, something went wrong. Try again in a moment.',
       }])
     } finally {
       setLoading(false)
@@ -59,37 +56,21 @@ export default function AskScreen({ dark, onBack }) {
     }
   }, [input, send])
 
-  const toggleVoice = useCallback(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) return
-
-    if (listening) {
-      recognitionRef.current?.stop()
-      setListening(false)
-      return
-    }
-
-    const r = new SR()
-    recognitionRef.current = r
-    r.lang = 'en-US'
-    r.continuous = false
-    r.interimResults = false
-
-    r.onresult = (e) => {
-      const transcript = e.results[0][0].transcript
-      send(transcript)
-    }
-    r.onend = () => setListening(false)
-    r.onerror = () => setListening(false)
-    r.start()
-    setListening(true)
-  }, [listening, send])
-
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+    /*
+      height: 100dvh = dynamic viewport height.
+      On iOS, dvh shrinks when the keyboard opens, so the layout
+      compresses and the input stays above the keyboard automatically.
+    */
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: '100dvh',
+      background: 'var(--bg)',
+      position: 'fixed', inset: 0,
+      zIndex: 10,
+    }}>
       {/* Header */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 6,
         background: 'var(--bg)',
         padding: '20px 16px 14px',
         borderBottom: '1px solid var(--border)',
@@ -142,7 +123,7 @@ export default function AskScreen({ dark, onBack }) {
         </button>
       </div>
 
-      {/* Messages */}
+      {/* Messages — scrolls independently */}
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 16px 14px' }}>
         {messages.map(msg => (
           <ChatBubble key={msg.id} msg={msg} />
@@ -167,9 +148,8 @@ export default function AskScreen({ dark, onBack }) {
         <div ref={bottomRef}/>
       </div>
 
-      {/* Input bar */}
+      {/* Input — always at bottom, above keyboard */}
       <div style={{
-        position: 'sticky', bottom: 0, zIndex: 6,
         background: 'var(--bg)',
         borderTop: '1px solid var(--border)',
         padding: '10px 14px 28px',
@@ -186,7 +166,7 @@ export default function AskScreen({ dark, onBack }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Clark anything…"
+            placeholder="Ask Clark anything… (use mic on keyboard for voice)"
             rows={1}
             style={{
               flex: 1, fontSize: 14.5, fontFamily: 'inherit',
@@ -196,8 +176,9 @@ export default function AskScreen({ dark, onBack }) {
               minHeight: 22, maxHeight: 120,
             }}
             onInput={e => {
-              e.target.style.height = 'auto'
-              e.target.style.height = e.target.scrollHeight + 'px'
+              const el = e.target as HTMLTextAreaElement
+              el.style.height = 'auto'
+              el.style.height = el.scrollHeight + 'px'
             }}
           />
           {input.trim() && (
@@ -208,33 +189,12 @@ export default function AskScreen({ dark, onBack }) {
                 color: 'var(--accent)', cursor: 'pointer', display: 'flex',
               }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14M13 6l6 6-6 6"/>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
               </svg>
             </button>
           )}
         </div>
-        <button
-          onClick={toggleVoice}
-          style={{
-            width: 46, height: 46, borderRadius: '50%', flexShrink: 0, padding: 0, border: 'none',
-            background: listening ? '#E05252' : 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(86,141,179,0.35)', cursor: 'pointer',
-            transition: 'background 0.2s',
-          }}
-        >
-          {listening ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
-              <rect x="6" y="6" width="12" height="12" rx="2"/>
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/>
-              <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
-            </svg>
-          )}
-        </button>
       </div>
     </div>
   )
@@ -258,16 +218,6 @@ function ChatBubble({ msg }) {
         whiteSpace: 'pre-wrap',
       }}>
         {msg.text}
-        {msg.list && (
-          <div style={{ marginTop: 9, display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {msg.list.map((li, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13.5, lineHeight: 1.4 }}>
-                <span style={{ marginTop: 6, width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, display: 'inline-block' }}/>
-                <span>{li}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )

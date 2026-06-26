@@ -3,7 +3,16 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
   const { messages } = await req.json() as {
     messages: Array<{ role: 'user' | 'assistant'; content: string }>
   }
@@ -13,7 +22,6 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Gather all context in parallel
   const [tasksRes, gradesRes, emailsRes, clubsRes, settingsRes] = await Promise.all([
     supabase.from('tasks').select('title, category, tag, due_date, priority, done').eq('done', false).limit(30),
     supabase.from('grades').select('class_name, score, percentage, note').order('class_order'),
@@ -64,6 +72,6 @@ ${context}`,
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
   return new Response(JSON.stringify({ text }), {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 })

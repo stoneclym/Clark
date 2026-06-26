@@ -3,6 +3,11 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 const SYSTEM = `You are Clark's brain-dump parser. The user speaks or types freely and you extract every action item.
 
 Return ONLY valid JSON with this shape:
@@ -29,6 +34,10 @@ Rules:
 - No markdown, no explanation — raw JSON only`
 
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
   const { text, schedule_context } = await req.json()
 
   const supabase = createClient(
@@ -54,7 +63,10 @@ Deno.serve(async (req) => {
   try {
     parsed = JSON.parse(response.content[0].type === 'text' ? response.content[0].text : '{}')
   } catch {
-    return new Response(JSON.stringify({ error: 'Parse failed' }), { status: 500 })
+    return new Response(JSON.stringify({ error: 'Parse failed' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 
   // Insert tasks
@@ -108,6 +120,6 @@ Deno.serve(async (req) => {
 
   return new Response(
     JSON.stringify({ ok: true, parsed }),
-    { headers: { 'Content-Type': 'application/json' } },
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 })

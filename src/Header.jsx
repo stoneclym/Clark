@@ -1,10 +1,45 @@
 const QUICK_LINKS = [
-  { id: 'q1', label: 'Outlook', glyph: 'O', tint: '#0F6CBD' },
-  { id: 'q2', label: 'Canvas', glyph: 'C', tint: '#D64541' },
-  { id: 'q3', label: 'Infinite Campus', glyph: 'IC', tint: '#3E8E5A' },
+  {
+    id: 'outlook',
+    label: 'Outlook',
+    glyph: 'O',
+    tint: '#0F6CBD',
+    deepLink: 'ms-outlook://',
+    webUrl: 'https://outlook.office.com/mail/',
+  },
+  {
+    id: 'canvas',
+    label: 'Canvas',
+    glyph: 'C',
+    tint: '#D64541',
+    deepLink: 'canvas-courses://',
+    webUrl: 'https://nhcs.instructure.com',
+  },
+  {
+    id: 'ic',
+    label: 'Infinite Campus',
+    glyph: 'IC',
+    tint: '#3E8E5A',
+    deepLink: 'infinitecampus://',
+    webUrl: 'https://newhanover.infinitecampus.org/campus/portal/newHanover.jsp',
+  },
 ]
 
-export default function Header({ dark, quickOpen, onToggleDark, onToggleQuick }) {
+function openApp(deepLink, webUrl) {
+  // Try the deep link; if the app isn't installed iOS will do nothing
+  // and we fall back to the web URL after a short delay
+  const start = Date.now()
+  window.location.href = deepLink
+  setTimeout(() => {
+    if (Date.now() - start < 2000) {
+      window.location.href = webUrl
+    }
+  }, 1200)
+}
+
+export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+
   return (
     <div style={{
       position: 'sticky', top: 0, zIndex: 6,
@@ -19,9 +54,10 @@ export default function Header({ dark, quickOpen, onToggleDark, onToggleQuick })
             fontSize: 26, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1,
             color: 'var(--text)',
           }}>Clark</div>
-          <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--muted)' }}>Friday, June 26</div>
+          <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--muted)' }}>{today}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          {/* Quick links toggle */}
           <button
             onClick={onToggleQuick}
             style={{
@@ -40,8 +76,10 @@ export default function Header({ dark, quickOpen, onToggleDark, onToggleQuick })
               <rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>
             </svg>
           </button>
+
+          {/* Settings */}
           <button
-            onClick={onToggleDark}
+            onClick={onOpenSettings}
             style={{
               cursor: 'pointer', width: 38, height: 38, borderRadius: '50%',
               border: '1px solid var(--border)', background: 'var(--card)',
@@ -49,28 +87,27 @@ export default function Header({ dark, quickOpen, onToggleDark, onToggleQuick })
               color: 'var(--muted)', flexShrink: 0, padding: 0,
             }}
           >
-            {dark ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                <circle cx="12" cy="12" r="4"/>
-                <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19"/>
-              </svg>
-            ) : (
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-                <path d="M21 12.9A9 9 0 1 1 11.1 3 7 7 0 0 0 21 12.9Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
-              </svg>
-            )}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
           </button>
         </div>
       </div>
 
+      {/* Quick links panel */}
       {quickOpen && (
         <div style={{ display: 'flex', gap: 9, padding: '0 0 14px' }}>
           {QUICK_LINKS.map(ql => (
-            <div key={ql.id} style={{
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
-              background: 'var(--cardAlt)', border: '1px solid var(--border)',
-              borderRadius: 15, padding: '11px 6px', cursor: 'pointer',
-            }}>
+            <div
+              key={ql.id}
+              onClick={() => openApp(ql.deepLink, ql.webUrl)}
+              style={{
+                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
+                background: 'var(--cardAlt)', border: '1px solid var(--border)',
+                borderRadius: 15, padding: '11px 6px', cursor: 'pointer',
+              }}
+            >
               <div style={{
                 width: 38, height: 38, borderRadius: 12,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',

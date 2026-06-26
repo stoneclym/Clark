@@ -4,6 +4,7 @@ import TabBar from './TabBar.jsx'
 import TodayScreen from './TodayScreen.jsx'
 import ClubsScreen from './ClubsScreen.jsx'
 import AskScreen from './AskScreen.jsx'
+import SettingsScreen from './SettingsScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
 import { supabase } from './lib/supabase.js'
 import { getStoredCredentialId, authenticateBiometric } from './lib/webauthn.js'
@@ -53,7 +54,6 @@ export default function App() {
 
   // Auth state: null=checking, false=locked, true=unlocked
   const [authed, setAuthed] = useState(null)
-  const [hasCredential, setHasCredential] = useState(false)
 
   useEffect(() => {
     // Handle Microsoft OAuth callback (?code=...&state=outlook_auth)
@@ -62,7 +62,6 @@ export default function App() {
     const state = params.get('state')
     if (code && state === 'outlook_auth') {
       window.history.replaceState({}, '', window.location.pathname)
-      // Go to Today immediately; token exchange happens in background
       setAuthed(true)
       setScreen('today')
       supabase.functions.invoke('microsoft-callback', {
@@ -72,19 +71,13 @@ export default function App() {
     }
 
     const credId = getStoredCredentialId()
-    setHasCredential(!!credId)
     if (!credId) {
-      // No credential → show setup
       setAuthed(true)
       setScreen('setup')
     } else {
-      // Credential exists → try silent auth
       authenticateBiometric(credId)
         .then(() => setAuthed(true))
-        .catch(() => {
-          // Fall back to prompt on interaction
-          setAuthed(false)
-        })
+        .catch(() => setAuthed(false))
     }
   }, [])
 
@@ -120,9 +113,8 @@ export default function App() {
     if (quickOpen) setQuickOpen(false)
   }, [quickOpen])
 
-  const showChrome = screen !== 'setup' && screen !== 'ask'
+  const showChrome = screen !== 'setup' && screen !== 'ask' && screen !== 'settings'
 
-  // Loading / lock screen
   if (authed === null) {
     return (
       <div className="app-shell">
@@ -174,10 +166,9 @@ export default function App() {
       <div className="app-frame" style={themeStyle}>
         {showChrome && (
           <Header
-            dark={dark}
             quickOpen={quickOpen}
-            onToggleDark={() => setDark(d => !d)}
             onToggleQuick={() => setQuickOpen(o => !o)}
+            onOpenSettings={() => { setQuickOpen(false); setScreen('settings') }}
           />
         )}
 
@@ -194,8 +185,12 @@ export default function App() {
               <ClubsScreen onCloseQuick={closeQuick} />
             )}
             {screen === 'ask' && (
-              <AskScreen
+              <AskScreen onBack={() => setScreen('today')} />
+            )}
+            {screen === 'settings' && (
+              <SettingsScreen
                 dark={dark}
+                onToggleDark={() => setDark(d => !d)}
                 onBack={() => setScreen('today')}
               />
             )}
