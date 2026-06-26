@@ -7,7 +7,7 @@ import AskScreen from './AskScreen.jsx'
 import SettingsScreen from './SettingsScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
 import { supabase } from './lib/supabase.js'
-import { getStoredCredentialId, authenticateBiometric } from './lib/webauthn.js'
+import { getStoredCredentialId, authenticateBiometric, clearCredentialId } from './lib/webauthn.js'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -130,6 +130,11 @@ export default function App() {
   }
 
   if (authed === false) {
+    const resetAndSetup = () => {
+      clearCredentialId()
+      setAuthed(true)
+      setScreen('setup')
+    }
     return (
       <div className="app-shell">
         <div className="app-frame" style={themeStyle}>
@@ -155,6 +160,16 @@ export default function App() {
             <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center' }}>
               Tap to unlock with Face ID
             </div>
+            <button
+              onClick={resetAndSetup}
+              style={{
+                marginTop: 8, background: 'none', border: 'none',
+                fontSize: 12, color: 'var(--faint)', cursor: 'pointer',
+                fontFamily: 'inherit', padding: '4px 0',
+              }}
+            >
+              Can't unlock? Reset Face ID
+            </button>
           </div>
         </div>
       </div>
