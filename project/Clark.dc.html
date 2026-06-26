@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0}
+::-webkit-scrollbar{width:0;height:0}
+@keyframes clarkPulse{0%{transform:scale(1);opacity:.4}70%{transform:scale(1.7);opacity:0}100%{opacity:0}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#E4E1D8;display:flex;flex-direction:column;align-items:center;gap:18px;padding:26px 16px 44px;font-family:'Hanken Grotesk',system-ui,sans-serif">
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:11px">
+    <div style="font-family:'Source Serif 4',Georgia,serif;font-size:15px;color:#5b564b">Clark — personal school dashboard</div>
+    <div style="display:inline-flex;background:#fff;border:1px solid rgba(40,36,28,0.10);border-radius:999px;padding:4px;gap:2px;box-shadow:0 1px 2px rgba(40,36,28,0.06)">
+      <sc-for list="{{ segs }}" as="seg" hint-placeholder-count="3">
+        <div onClick="{{ seg.onSelect }}" style="{{ seg.style }}">{{ seg.label }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="{{ themeVars }}">
+    <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ dark }}" hint-size="402px,874px">
+      <div style="min-height:100%;display:flex;flex-direction:column;background:var(--bg,#F0EEE6);color:var(--text,#262420);font-family:'Hanken Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased">
+
+        <sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}">
+          <div style="position:sticky;top:0;z-index:6;background:var(--bg,#F0EEE6);padding:60px 20px 0;border-bottom:1px solid var(--border,rgba(40,36,28,0.10))">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;padding-bottom:14px">
+              <div>
+                <div style="font-family:'Source Serif 4',Georgia,serif;font-size:26px;font-weight:600;letter-spacing:-0.01em;line-height:1">Clark</div>
+                <div style="margin-top:4px;font-size:12.5px;color:var(--muted,#6B675C)">Thursday, June 25</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px">
+                <div onClick="{{ toggleQuick }}" style="{{ quickBtnStyle }}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>
+                </div>
+                <div onClick="{{ toggleDark }}" style="cursor:pointer;width:38px;height:38px;border-radius:50%;border:1px solid var(--border,rgba(40,36,28,0.10));background:var(--card,#fff);display:flex;align-items:center;justify-content:center;color:var(--muted,#6B675C);flex-shrink:0">
+                  <sc-if value="{{ dark }}" hint-placeholder-val="{{ false }}">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19"/></svg>
+                  </sc-if>
+                  <sc-if value="{{ light }}" hint-placeholder-val="{{ true }}">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M21 12.9A9 9 0 1 1 11.1 3 7 7 0 0 0 21 12.9Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+            <sc-if value="{{ quickOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:9px;padding:0 0 14px">
+                <sc-for list="{{ quickLinks }}" as="ql" hint-placeholder-count="3">
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;background:var(--cardAlt,#FAF8F2);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:15px;padding:11px 6px;cursor:pointer">
+                    <div style="{{ ql.tileStyle }}">{{ ql.glyph }}</div>
+                    <div style="font-size:11px;font-weight:600;text-align:center;line-height:1.2;color:var(--text,#262420)">{{ ql.label }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+          <div onClick="{{ closeQuick }}" style="flex:1;display:flex;flex-direction:column;gap:14px;padding:16px 16px 18px">
+
+            <div style="background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:22px;padding:20px;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+              <div style="display:flex;align-items:center;gap:12px;background:var(--cardAlt,#FAF8F2);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:14px;padding:12px 14px">
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;background:var(--accentSoft,rgba(86,141,179,0.13));color:var(--accentText,#3C6C8F)">
+                  <span style="font-size:9px;font-weight:700;letter-spacing:0.06em">DAY</span>
+                  <span style="font-family:'Source Serif 4',Georgia,serif;font-size:19px;font-weight:600;line-height:1">B</span>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:10.5px;color:var(--faint,#9A9486);font-weight:600;letter-spacing:0.04em;text-transform:uppercase">Now · Period 2</div>
+                  <div style="font-family:'Source Serif 4',Georgia,serif;font-size:16px;font-weight:500;margin-top:2px">History of the Americas</div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:18px;font-weight:700;color:var(--accentText,#3C6C8F);line-height:1">22<span style="font-size:11px;font-weight:600"> min</span></div>
+                  <div style="font-size:10.5px;color:var(--muted,#6B675C);margin-top:2px">til Bio HL</div>
+                </div>
+              </div>
+
+              <div style="margin-top:18px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint,#9A9486)">This morning</div>
+                  <div style="display:flex;align-items:center;gap:8px;color:var(--faint,#9A9486)">
+                    <span style="font-size:11px">7:42 AM</span>
+                    <div style="cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--accentText,#3C6C8F)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-1 6"/><path d="M20 4v5h-5"/></svg></div>
+                  </div>
+                </div>
+                <p style="margin:0;font-family:var(--briefing-font,'Source Serif 4',Georgia,serif);font-size:15.5px;line-height:1.62;color:var(--text,#262420);letter-spacing:-0.003em">Good morning. It's a B day — History of the Americas, Biology HL, then Spanish Club after school. Two things are time-sensitive: your HOTA essay outline is due by end of day, and the NHS blood-drive flyer should go up on Instagram before lunch. Your UNC supplemental is still a rough draft with a Friday deadline, so thirty focused minutes today would help. Everything else is on track.</p>
+              </div>
+
+              <div style="margin-top:18px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint,#9A9486)">Priorities</div>
+                  <div style="font-size:11px;color:var(--faint,#9A9486)">Reordered by Clark · 8m ago</div>
+                </div>
+                <div style="display:flex;flex-direction:column">
+                  <sc-for list="{{ priorities }}" as="item" hint-placeholder-count="4">
+                    <div onClick="{{ item.onToggle }}" style="display:flex;align-items:flex-start;gap:11px;padding:9px 2px;cursor:pointer">
+                      <sc-if value="{{ item.done }}" hint-placeholder-val="{{ false }}">
+                        <div style="flex-shrink:0;width:20px;height:20px;border-radius:6px;background:var(--accent,#568DB3);display:flex;align-items:center;justify-content:center;margin-top:1px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      </sc-if>
+                      <sc-if value="{{ item.notDone }}" hint-placeholder-val="{{ true }}">
+                        <div style="flex-shrink:0;width:20px;height:20px;border-radius:6px;border:1.6px solid var(--borderStrong,rgba(40,36,28,0.18));margin-top:1px"></div>
+                      </sc-if>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:14px;font-weight:500;line-height:1.3;text-decoration:{{ item.deco }};color:{{ item.titleColor }}">{{ item.title }}</div>
+                        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+                          <span style="font-size:11.5px;color:var(--muted,#6B675C)">{{ item.meta }}</span>
+                          <span style="font-size:10px;font-weight:600;padding:1.5px 7px;border-radius:999px;background:var(--accentSoft,rgba(86,141,179,0.13));color:var(--accentText,#3C6C8F)">{{ item.source }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:22px;padding:20px;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint,#9A9486)">Brain Dump</div>
+              <div style="margin-top:12px;background:var(--cardAlt,#FAF8F2);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:16px;padding:16px;min-height:92px">
+                <div style="font-size:14.5px;color:var(--faint,#9A9486);line-height:1.5">Tell Clark anything — “Bio notes are due next class,” “Got an 88 on the HOTA essay,” “Remind the Spanish Club about Thursday”…</div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px">
+                <div style="font-size:11.5px;color:var(--muted,#6B675C);line-height:1.4">Last parsed · 3 tasks, 1 grade<br>8:02 AM</div>
+                <div style="display:flex;align-items:center;gap:11px">
+                  <span style="font-size:12.5px;font-weight:600;color:var(--accentText,#3C6C8F)">Hold to speak</span>
+                  <div style="position:relative;width:52px;height:52px">
+                    <div style="position:absolute;inset:0;border-radius:50%;background:var(--accent,#568DB3);animation:clarkPulse 2.4s ease-out infinite"></div>
+                    <div style="position:relative;width:52px;height:52px;border-radius:50%;background:var(--accent,#568DB3);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(86,141,179,0.35)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:22px;padding:20px;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint,#9A9486)">Tasks</div>
+                <div style="font-size:11.5px;color:var(--faint,#9A9486)">{{ taskCount }} active</div>
+              </div>
+              <div style="display:flex;gap:7px;margin-top:13px">
+                <sc-for list="{{ filters }}" as="f" hint-placeholder-count="4">
+                  <div onClick="{{ f.onSelect }}" style="{{ f.style }}">{{ f.label }}</div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:column;margin-top:6px">
+                <sc-for list="{{ tasks }}" as="item" hint-placeholder-count="5">
+                  <div onClick="{{ item.onToggle }}" style="display:flex;align-items:center;gap:11px;padding:11px 2px;border-top:1px solid var(--border,rgba(40,36,28,0.08));cursor:pointer">
+                    <sc-if value="{{ item.done }}" hint-placeholder-val="{{ false }}">
+                      <div style="flex-shrink:0;width:19px;height:19px;border-radius:6px;background:var(--accent,#568DB3);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    </sc-if>
+                    <sc-if value="{{ item.notDone }}" hint-placeholder-val="{{ true }}">
+                      <div style="flex-shrink:0;width:19px;height:19px;border-radius:6px;border:1.6px solid var(--borderStrong,rgba(40,36,28,0.18))"></div>
+                    </sc-if>
+                    <div style="flex:1;min-width:0;font-size:14px;font-weight:500;text-decoration:{{ item.deco }};color:{{ item.titleColor }}">{{ item.title }}</div>
+                    <span style="font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:6px;background:var(--cardAlt,#FAF8F2);color:var(--muted,#6B675C);border:1px solid var(--border,rgba(40,36,28,0.10));white-space:nowrap">{{ item.tag }}</span>
+                    <span style="font-size:11.5px;color:var(--muted,#6B675C);white-space:nowrap;flex-shrink:0">{{ item.due }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:22px;padding:20px;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint,#9A9486)">Calendar</div>
+                <div style="font-family:'Source Serif 4',Georgia,serif;font-size:15px;font-weight:500">June 2026</div>
+              </div>
+              <div style="display:flex;margin-bottom:4px">
+                <div style="flex:1;text-align:center;font-size:10.5px;font-weight:600;color:var(--faint,#9A9486)">S</div>
+                <div style="flex:1;text-align:center;font-size:10.5px;font-weight:600;color:var(--faint,#9A9486)">M</div>
+                <div style="flex:1;text-align:center;font-size:10.5px;font-weight:600;color:var(--faint,#9A9486)">T</div>
+                <div style="flex:1;text-align:center;font-size:10.5px;font-weight:600;color:var(--faint,#9A9486)">W</div>
+                <div style="flex:1;text-align:center;font-size:10.5px;font-weight:600;color:var(--faint,#9A9486)">T</div>
+                <div style="flex:1;text-align:center;font-size:10.5px;font-weight:600;color:var(--faint,#9A9486)">F</div>
+                <div style="flex:1;text-align:center;font-size:10.5px;font-weight:600;color:var(--faint,#9A9486)">S</div>
+              </div>
+              <sc-for list="{{ weeks }}" as="week" hint-placeholder-count="5">
+                <div style="display:flex">
+                  <sc-for list="{{ week }}" as="cell" hint-placeholder-count="7">
+                    <div style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;position:relative">
+                      <sc-if value="{{ cell.day }}" hint-placeholder-val="{{ true }}">
+                        <div style="{{ cell.numStyle }}">{{ cell.day }}</div>
+                        <sc-if value="{{ cell.hasEvent }}" hint-placeholder-val="{{ false }}">
+                          <div style="position:absolute;bottom:4px;width:5px;height:5px;border-radius:50%;background:var(--accent,#568DB3)"></div>
+                        </sc-if>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:22px;padding:20px;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint,#9A9486);margin-bottom:6px">Grades</div>
+              <sc-for list="{{ grades }}" as="g" hint-placeholder-count="6">
+                <div style="display:flex;align-items:flex-start;gap:12px;padding:13px 0;border-top:1px solid var(--border,rgba(40,36,28,0.08))">
+                  <div style="flex:1;min-width:0">
+                    <div style="font-family:'Source Serif 4',Georgia,serif;font-size:15px;font-weight:500;line-height:1.25">{{ g.name }}</div>
+                    <div style="font-size:11.5px;color:var(--muted,#6B675C);margin-top:3px">{{ g.upd }}</div>
+                    <sc-if value="{{ g.hasNote }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:11.5px;color:var(--faint,#9A9486);margin-top:3px;font-style:italic">“{{ g.note }}”</div>
+                    </sc-if>
+                  </div>
+                  <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end">
+                    <div style="{{ g.scoreStyle }}">{{ g.score }}</div>
+                    <sc-if value="{{ g.hasPct }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:12px;color:var(--muted,#6B675C);margin-top:3px">{{ g.pct }}</div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:22px;padding:20px;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--faint,#9A9486)">Inbox</div>
+                <div style="font-size:11px;color:var(--faint,#9A9486)">via Gmail</div>
+              </div>
+              <sc-for list="{{ emails }}" as="m" hint-placeholder-count="3">
+                <div style="padding:14px 0;border-top:1px solid var(--border,rgba(40,36,28,0.08))">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="width:30px;height:30px;border-radius:50%;background:var(--accentSoft,rgba(86,141,179,0.13));color:var(--accentText,#3C6C8F);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">{{ m.init }}</div>
+                    <div style="flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.from }}</div>
+                    <span style="font-size:11px;color:var(--faint,#9A9486);flex-shrink:0">{{ m.time }}</span>
+                  </div>
+                  <div style="font-size:13.5px;font-weight:600;margin-top:9px">{{ m.subj }}</div>
+                  <div style="font-size:12.5px;color:var(--muted,#6B675C);line-height:1.5;margin-top:3px">{{ m.snippet }}</div>
+                  <div style="display:flex;align-items:center;gap:11px;margin-top:11px">
+                    <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#fff;background:var(--accent,#568DB3);padding:7px 12px;border-radius:9px;cursor:pointer"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>Draft reply</div>
+                    <span style="font-size:10.5px;color:var(--faint,#9A9486);display:inline-flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accentText,#3C6C8F)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>headers cleaned</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isClubs }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeQuick }}" style="flex:1;display:flex;flex-direction:column;gap:14px;padding:16px 16px 18px">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;padding:2px 2px 0">
+              <div style="font-family:'Source Serif 4',Georgia,serif;font-size:22px;font-weight:600">Clubs</div>
+              <div style="font-size:12px;color:var(--muted,#6B675C)">4 leadership roles</div>
+            </div>
+            <sc-for list="{{ clubs }}" as="club" hint-placeholder-count="4">
+              <div style="background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:22px;padding:20px;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+                <div style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;font-weight:600;line-height:1.2">{{ club.name }}</div>
+                <div style="display:inline-block;margin-top:7px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--accentSoft,rgba(86,141,179,0.13));color:var(--accentText,#3C6C8F)">{{ club.role }}</div>
+                <div style="{{ club.meetStyle }}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="flex-shrink:0"><rect x="3.5" y="5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>
+                  <div>
+                    <div style="font-size:9.5px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;opacity:0.75">Next meeting</div>
+                    <div style="font-size:13.5px;font-weight:600;margin-top:1px;color:var(--text,#262420)">{{ club.meeting }}</div>
+                  </div>
+                </div>
+                <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
+                  <sc-for list="{{ club.tasks }}" as="t" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:11px">
+                      <div style="width:17px;height:17px;border-radius:5px;border:1.6px solid var(--borderStrong,rgba(40,36,28,0.18));flex-shrink:0"></div>
+                      <span style="font-size:13.5px;color:var(--text,#262420)">{{ t }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isAsk }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;flex-direction:column;min-height:100%">
+            <div style="position:sticky;top:0;z-index:6;background:var(--bg,#F0EEE6);padding:56px 16px 14px;border-bottom:1px solid var(--border,rgba(40,36,28,0.10));display:flex;align-items:center;gap:12px">
+              <div onClick="{{ goToday }}" style="width:38px;height:38px;border-radius:50%;border:1px solid var(--border,rgba(40,36,28,0.10));background:var(--card,#fff);display:flex;align-items:center;justify-content:center;color:var(--muted,#6B675C);cursor:pointer;flex-shrink:0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+              <div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px">
+                <div style="width:36px;height:36px;border-radius:50%;background:var(--accent,#568DB3);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 3px 8px rgba(86,141,179,0.3)">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-5.4A8 8 0 1 1 21 11.5z"/><path d="M9.5 11h.01M13 11h.01M16.5 11h.01"/></svg>
+                </div>
+                <div>
+                  <div style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;font-weight:600;line-height:1">Ask Clark</div>
+                  <div style="font-size:11px;color:var(--faint,#9A9486);margin-top:3px;display:flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent,#568DB3)"></span>Sees your schedule, tasks &amp; inbox</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="flex:1;display:flex;flex-direction:column;gap:14px;padding:18px 16px 14px">
+              <div style="text-align:center;font-size:11px;color:var(--faint,#9A9486)">Today · 7:48 AM · B day</div>
+              <sc-for list="{{ messages }}" as="msg" hint-placeholder-count="4">
+                <div style="{{ msg.rowStyle }}">
+                  <div style="{{ msg.bubbleStyle }}">
+                    <div>{{ msg.text }}</div>
+                    <sc-if value="{{ msg.hasList }}" hint-placeholder-val="{{ false }}">
+                      <div style="margin-top:9px;display:flex;flex-direction:column;gap:7px">
+                        <sc-for list="{{ msg.list }}" as="li" hint-placeholder-count="3">
+                          <div style="display:flex;align-items:flex-start;gap:8px;font-size:13.5px;line-height:1.4">
+                            <span style="margin-top:6px;width:5px;height:5px;border-radius:50%;background:var(--accent,#568DB3);flex-shrink:0"></span>
+                            <span>{{ li }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ msg.hasCard }}" hint-placeholder-val="{{ false }}">
+                      <div style="margin-top:11px;background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:13px;padding:11px 12px;display:flex;align-items:center;gap:11px">
+                        <div style="width:36px;height:36px;border-radius:10px;background:var(--accentSoft,rgba(86,141,179,0.13));color:var(--accentText,#3C6C8F);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+                        <div style="flex:1;min-width:0">
+                          <div style="font-size:13.5px;font-weight:600;color:var(--text,#262420)">{{ msg.card.title }}</div>
+                          <div style="font-size:11.5px;color:var(--muted,#6B675C);margin-top:2px">{{ msg.card.meta }}</div>
+                        </div>
+                        <span style="font-size:10px;font-weight:600;color:var(--accentText,#3C6C8F);white-space:nowrap">{{ msg.card.via }}</span>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="position:sticky;bottom:0;z-index:6;background:var(--bg,#F0EEE6);border-top:1px solid var(--border,rgba(40,36,28,0.10));padding:12px 14px 30px;display:flex;align-items:center;gap:10px">
+              <div style="flex:1;display:flex;align-items:center;gap:8px;background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:999px;padding:12px 16px">
+                <span style="flex:1;font-size:14.5px;color:var(--faint,#9A9486)">Ask Clark anything…</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--faint,#9A9486)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </div>
+              <div style="width:48px;height:48px;border-radius:50%;background:var(--accent,#568DB3);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(86,141,179,0.35);cursor:pointer;flex-shrink:0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;flex-direction:column;padding:64px 22px 30px;background:var(--bg,#F0EEE6)">
+            <div style="font-family:'Source Serif 4',Georgia,serif;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:var(--accentText,#3C6C8F);font-weight:600">Welcome</div>
+            <div style="font-family:'Source Serif 4',Georgia,serif;font-size:34px;font-weight:600;line-height:1.08;margin-top:10px;letter-spacing:-0.015em">Let's set up<br>Clark.</div>
+            <p style="font-size:14.5px;color:var(--muted,#6B675C);line-height:1.55;margin:12px 0 0">Eight quick steps — about five minutes. Clark will know your schedule, your classes, and your inbox by the end.</p>
+
+            <div style="margin-top:24px;background:var(--card,#fff);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:20px;padding:24px 22px;display:flex;flex-direction:column;align-items:center;text-align:center;box-shadow:0 1px 2px rgba(40,36,28,0.05)">
+              <svg width="46" height="46" viewBox="0 0 48 48" fill="none" stroke="var(--accent,#568DB3)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16V11a5 5 0 0 1 5-5h5M32 6h5a5 5 0 0 1 5 5v5M42 32v5a5 5 0 0 1-5 5h-5M16 42h-5a5 5 0 0 1-5-5v-5"/><path d="M18 20v3M30 20v3M24 19v6l-2.4 1.6"/><path d="M18 30.5c1.8 1.8 4 2.6 6 2.6s4.2-.8 6-2.6"/></svg>
+              <div style="font-family:'Source Serif 4',Georgia,serif;font-size:18px;font-weight:600;margin-top:14px">Set up Face ID</div>
+              <div style="font-size:12.5px;color:var(--muted,#6B675C);margin-top:5px;line-height:1.5">No usernames, no passwords. Just you, every time you open Clark.</div>
+              <div style="margin-top:18px;width:100%;background:var(--accent,#568DB3);color:#fff;font-size:14px;font-weight:600;text-align:center;padding:13px;border-radius:12px;cursor:pointer;box-shadow:0 4px 12px rgba(86,141,179,0.3)">Register Face ID</div>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:26px;margin-bottom:11px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--faint,#9A9486)">Setup steps</div>
+              <div style="font-size:11.5px;color:var(--muted,#6B675C)">Step 1 of 8</div>
+            </div>
+            <div style="height:4px;border-radius:999px;background:var(--border,rgba(40,36,28,0.10));overflow:hidden;margin-bottom:8px"><div style="width:12.5%;height:100%;background:var(--accent,#568DB3);border-radius:999px"></div></div>
+
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ setupSteps }}" as="st" hint-placeholder-count="8">
+                <div style="display:flex;align-items:center;gap:13px;padding:13px 2px;border-top:1px solid var(--border,rgba(40,36,28,0.08))">
+                  <div style="{{ st.dotStyle }}">{{ st.n }}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:14px;font-weight:{{ st.titleWeight }};color:{{ st.titleColor }}">{{ st.title }}</div>
+                    <div style="font-size:11.5px;color:var(--muted,#6B675C);margin-top:1px">{{ st.desc }}</div>
+                  </div>
+                  <sc-if value="{{ st.isActive }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:10px;font-weight:700;color:var(--accentText,#3C6C8F);letter-spacing:0.04em;text-transform:uppercase">Now</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}">
+          <div style="position:sticky;bottom:0;z-index:5;background:var(--bg,#F0EEE6);border-top:1px solid var(--border,rgba(40,36,28,0.10));display:flex;align-items:flex-start;padding:9px 20px 30px">
+            <div onClick="{{ goToday }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ todayColor }}">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19"/></svg>
+              <span style="font-size:11px;font-weight:600">Today</span>
+            </div>
+            <div style="flex:1;display:flex;justify-content:center">
+              <div onClick="{{ goAsk }}" style="display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;margin-top:-24px">
+                <div style="width:56px;height:56px;border-radius:50%;background:var(--accent,#568DB3);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(86,141,179,0.4);border:3px solid var(--bg,#F0EEE6)">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-5.4A8 8 0 1 1 21 11.5z"/><path d="M9.5 11h.01M13 11h.01M16.5 11h.01"/></svg>
+                </div>
+                <span style="font-size:11px;font-weight:600;color:{{ askColor }}">Ask Clark</span>
+              </div>
+            </div>
+            <div onClick="{{ goClubs }}" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:{{ clubsColor }}">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>
+              <span style="font-size:11px;font-weight:600">Clubs</span>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </x-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:470,&quot;height&quot;:1000},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#568DB3&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;startDark&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;serifBriefing&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const BASE_LIGHT = {
+  bg:'#F0EEE6', card:'#FFFFFF', cardAlt:'#FAF8F2',
+  text:'#262420', muted:'#6B675C', faint:'#9A9486',
+  border:'rgba(40,36,28,0.10)', borderStrong:'rgba(40,36,28,0.18)',
+};
+const BASE_DARK = {
+  bg:'#1A1815', card:'#26231F', cardAlt:'#211E19',
+  text:'#ECE7DD', muted:'#A39C8E', faint:'#6E685B',
+  border:'rgba(255,255,255,0.09)', borderStrong:'rgba(255,255,255,0.20)',
+};
+
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.state = { screen:'today', dark:!!(props && props.startDark), filter:'All', checked:{}, quickOpen:false };
+  }
+  toggle(id){ this.setState(s=>({checked:Object.assign({},s.checked,{[id]:!s.checked[id]})})); }
+  go(screen){ this.setState({screen:screen}); }
+
+  renderVals(){
+    const dark = this.state.dark;
+    const accent = this.props.accentColor || '#568DB3';
+    const base = dark ? BASE_DARK : BASE_LIGHT;
+    const accentText = dark
+      ? `color-mix(in srgb, ${accent} 70%, #ffffff 30%)`
+      : `color-mix(in srgb, ${accent} 80%, #000000 20%)`;
+    const accentSoft = `color-mix(in srgb, ${accent} ${dark?20:13}%, transparent)`;
+    const briefingFont = (this.props.serifBriefing !== false)
+      ? "'Source Serif 4', Georgia, serif"
+      : "'Hanken Grotesk', system-ui, sans-serif";
+    const v = Object.assign({}, base, { accent, accentText, accentSoft });
+    const themeVars = Object.keys(v).map(k=>`--${k}:${v[k]}`).join(';') + `;--briefing-font:${briefingFont}`;
+
+    const checked = this.state.checked;
+    const dec = (it)=>{
+      const done = !!checked[it.id];
+      return Object.assign({}, it, {
+        done, notDone:!done,
+        deco: done ? 'line-through' : 'none',
+        titleColor: done ? 'var(--faint,#9A9486)' : 'var(--text,#262420)',
+        onToggle: ()=>this.toggle(it.id),
+      });
+    };
+
+    const priorities = [
+      {id:'p1',title:'Finish HOTA essay outline',meta:'Due today',source:'Canvas'},
+      {id:'p2',title:'Post NHS blood-drive flyer to Instagram',meta:'Before lunch',source:'NHS'},
+      {id:'p3',title:'Revise UNC supplemental essay',meta:'Due Fri',source:'College'},
+      {id:'p4',title:'Bio IA — data analysis section',meta:'Next Bio class',source:'Canvas'},
+      {id:'p5',title:'Email Spanish Club meeting reminder',meta:'Tomorrow',source:'Spanish'},
+    ].map(dec);
+
+    const allTasks = [
+      {id:'t1',title:'HOTA essay outline',cat:'Class',tag:'HOTA',due:'Today',high:true},
+      {id:'t2',title:'Bio IA — data analysis',cat:'Class',tag:'Biology HL',due:'Next class',high:true},
+      {id:'t3',title:'UNC supplemental — revise draft',cat:'College',tag:'College',due:'Fri',high:true},
+      {id:'t4',title:'NHS blood-drive flyer → Instagram',cat:'Club',tag:'NHS',due:'Today',high:true},
+      {id:'t5',title:'Spanish Club reminder email',cat:'Club',tag:'Spanish Club',due:'Tomorrow',high:false},
+      {id:'t6',title:'Read Pachinko ch. 7–9',cat:'Class',tag:'IB Lang',due:'Mon',high:false},
+      {id:'t7',title:'Collect prom venue quotes',cat:'Club',tag:'Senior Class',due:'Wed',high:false},
+      {id:'t8',title:'Math AA — problem set 14',cat:'Class',tag:'Math AA',due:'Next class',high:false},
+    ];
+    const f = this.state.filter;
+    const tasks = allTasks.filter(t=> f==='All' ? true : (f==='Priority' ? t.high : t.cat===f)).map(dec);
+    const chip = (active)=> active
+      ? `padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;background:${accent};color:#fff`
+      : `padding:6px 13px;border-radius:999px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;border:1px solid var(--border,rgba(40,36,28,0.10));color:var(--muted,#6B675C)`;
+    const filters = ['All','Class','Club','Priority'].map(label=>({
+      label, style: chip(label===f), onSelect: ()=>this.setState({filter:label})
+    }));
+
+    const grades = [
+      {id:'g1',name:'IB English: Lang & Lit',score:'6',pct:'92%',upd:'Updated 2d ago',note:'Paper 1 returned — strong analysis',ph:false},
+      {id:'g2',name:'History of the Americas',score:'5',pct:'87%',upd:'Updated today',note:'Essay rubric feedback posted',ph:false},
+      {id:'g3',name:'Math: Analysis & Approaches',score:'6',pct:'90%',upd:'Updated 4d ago',note:'',ph:false},
+      {id:'g4',name:'Biology HL',score:'5',pct:'85%',upd:'Updated 1d ago',note:'IA draft due next class',ph:false},
+      {id:'g5',name:'Theory of Knowledge',score:'A',pct:'',upd:'Updated 1w ago',note:'Exhibition on track',ph:false},
+      {id:'g6',name:'Cape Fear CC — Course I',score:'—',pct:'',upd:'No grade yet',note:'Add a grade via brain dump',ph:true},
+      {id:'g7',name:'Cape Fear CC — Course II',score:'—',pct:'',upd:'No grade yet',note:'Add a grade via brain dump',ph:true},
+    ].map(g=>Object.assign({}, g, {
+      hasNote: !!g.note, hasPct: !!g.pct,
+      scoreStyle: g.ph
+        ? "font-family:'Source Serif 4',Georgia,serif;font-size:22px;font-weight:500;color:var(--faint,#9A9486);line-height:1"
+        : "font-family:'Source Serif 4',Georgia,serif;font-size:25px;font-weight:600;color:var(--accentText,#3C6C8F);line-height:1",
+    }));
+
+    const emails = [
+      {id:'e1',from:'Ms. Reyes · IB Coordinator',init:'R',time:'8:14 AM',subj:'EE final submission — deadline moved',snippet:'The Extended Essay final upload has moved to Monday. Please confirm your supervisor sign-off before then.'},
+      {id:'e2',from:'Beta Club Secretary',init:'B',time:'Yesterday',subj:'October service-hours form',snippet:'Attaching the service-hours form for this month. VPs please review before the next meeting and flag discrepancies.'},
+      {id:'e3',from:'Counseling Office',init:'C',time:'Mon',subj:'Senior transcript request window open',snippet:'Transcript requests for early-action applications are open in Naviance. Submit by Oct 20 to guarantee processing.'},
+    ];
+
+    const clubs = [
+      {id:'c1',name:'National Honor Society',role:'Communications Officer',meeting:'Tue, Jul 1 · 7:45 AM · Library',prominent:false,tasks:['Schedule blood-drive Instagram post','Draft October email announcement','Confirm flyer copy with adviser']},
+      {id:'c2',name:'Beta Club',role:'Vice President',meeting:'Thu, Jul 3 · 3:30 PM · Room 118',prominent:false,tasks:['Plan fall service project','Confirm agenda with President','Review October service-hours form']},
+      {id:'c3',name:'Spanish Club',role:'Co-President',meeting:'Tomorrow · 3:30 PM · Room 214',prominent:true,tasks:['Finalize Día de los Muertos presentation','Email pre-meeting reminder to members']},
+      {id:'c4',name:'Senior Class',role:'President · Student Council',meeting:'Fri, Jun 26 · 12:10 PM · Commons',prominent:true,tasks:['Collect prom venue quotes','Senior sunrise planning','Confirm class-gift vote']},
+    ].map(c=>Object.assign({}, c, {
+      meetStyle: c.prominent
+        ? "display:flex;align-items:center;gap:11px;margin-top:14px;background:var(--accentSoft,rgba(86,141,179,0.13));border-radius:13px;padding:11px 13px;color:var(--accentText,#3C6C8F)"
+        : "display:flex;align-items:center;gap:11px;margin-top:14px;background:var(--cardAlt,#FAF8F2);border:1px solid var(--border,rgba(40,36,28,0.10));border-radius:13px;padding:11px 13px;color:var(--muted,#6B675C)",
+    }));
+
+    const setupSteps = [
+      {n:'1',title:'Register Face ID',desc:'Biometric sign-in — no passwords',active:true},
+      {n:'2',title:'First day & A/B day',desc:'Sets the alternating block rhythm',active:false},
+      {n:'3',title:'No-school dates',desc:'Holidays the pattern skips',active:false},
+      {n:'4',title:'A-day schedule',desc:'Classes and period times',active:false},
+      {n:'5',title:'B-day schedule',desc:'Classes and period times',active:false},
+      {n:'6',title:'Cape Fear classes',desc:'Daily, by semester',active:false},
+      {n:'7',title:'Connect Canvas',desc:'Personal access token',active:false},
+      {n:'8',title:'Connect Gmail',desc:'Forwarded school email',active:false},
+    ].map((s,i)=>Object.assign({}, s, {
+      id:'st'+i, isActive:s.active,
+      dotStyle: s.active
+        ? `width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;background:${accent};color:#fff`
+        : "width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;background:transparent;color:var(--faint,#9A9486);border:1.6px solid var(--border,rgba(40,36,28,0.14))",
+      titleColor: s.active ? 'var(--text,#262420)' : 'var(--muted,#6B675C)',
+      titleWeight: s.active ? '600' : '500',
+    }));
+
+    const events = new Set([12,18,22,25,26,30]);
+    const today = 25, firstDow = 1, days = 30;
+    const cells = [];
+    for(let i=0;i<firstDow;i++) cells.push(null);
+    for(let d=1;d<=days;d++) cells.push(d);
+    while(cells.length % 7) cells.push(null);
+    const weeks = [];
+    for(let i=0;i<cells.length;i+=7){
+      weeks.push(cells.slice(i,i+7).map(d=>{
+        const isT = d===today;
+        const ev = d!=null && events.has(d);
+        return {
+          day: d,
+          hasEvent: ev && !isT,
+          numStyle: isT
+            ? `width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;background:${accent};color:#fff`
+            : (ev
+              ? "width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:600;color:var(--accentText,#3C6C8F)"
+              : "width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:500;color:var(--text,#262420)"),
+        };
+      }));
+    }
+
+    const quickOpen = this.state.quickOpen;
+    const quickBtnBase = 'cursor:pointer;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+    const quickBtnStyle = quickOpen
+      ? quickBtnBase + `border:1px solid transparent;background:${accentSoft};color:${accentText}`
+      : quickBtnBase + 'border:1px solid var(--border,rgba(40,36,28,0.10));background:var(--card,#fff);color:var(--muted,#6B675C)';
+    const quickLinks = [
+      {id:'q1', label:'Outlook', glyph:'O', tint:'#0F6CBD'},
+      {id:'q2', label:'Canvas', glyph:'C', tint:'#D64541'},
+      {id:'q3', label:'Infinite Campus', glyph:'IC', tint:'#3E8E5A'},
+    ].map(q=>Object.assign({}, q, {
+      tileStyle:`width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Source Serif 4',Georgia,serif;font-size:14px;font-weight:600;color:#fff;background:${q.tint};flex-shrink:0`,
+    }));
+
+    const messages = [
+      {id:'am1', role:'clark', text:"Morning — it's a B day. History of the Americas now, then Bio HL, and Spanish Club after school. Want the rundown?"},
+      {id:'am2', role:'user', text:'What do I have due this week?'},
+      {id:'am3', role:'clark', text:'Five things, most urgent first:', list:['HOTA essay outline — today','NHS blood-drive flyer — before lunch','UNC supplemental — Friday','Bio IA data section — next Bio class','Math AA problem set 14 — next class']},
+      {id:'am4', role:'user', text:'Remind me to email the Spanish Club tomorrow at 4.'},
+      {id:'am5', role:'clark', text:'Done — I set that reminder.', card:{title:'Email Spanish Club', meta:'Tomorrow · 4:00 PM', via:'Google Tasks'}},
+    ].map(m=>{
+      const isUser = m.role==='user';
+      return Object.assign({}, m, {
+        isUser, isClark:!isUser,
+        hasList: !!(m.list && m.list.length),
+        hasCard: !!m.card,
+        rowStyle: isUser ? 'display:flex;justify-content:flex-end' : 'display:flex;justify-content:flex-start',
+        bubbleStyle: isUser
+          ? `max-width:80%;background:${accent};color:#fff;padding:11px 15px;border-radius:18px 18px 5px 18px;font-size:14.5px;line-height:1.5`
+          : 'max-width:85%;background:var(--cardAlt,#FAF8F2);color:var(--text,#262420);border:1px solid var(--border,rgba(40,36,28,0.10));padding:12px 15px;border-radius:18px 18px 18px 5px;font-size:14.5px;line-height:1.55',
+      });
+    });
+
+    const screen = this.state.screen;
+    const segs = [
+      {label:'Setup',key:'setup'},{label:'Today',key:'today'},{label:'Ask',key:'ask'},{label:'Clubs',key:'clubs'}
+    ].map(s=>({
+      label: s.label,
+      onSelect: ()=>this.go(s.key),
+      style: screen===s.key
+        ? `padding:7px 17px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;background:${accent};color:#fff`
+        : "padding:7px 17px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:#6b6358",
+    }));
+
+    return {
+      themeVars, dark, light: !dark,
+      showChrome: screen!=='setup' && screen!=='ask',
+      isToday: screen==='today', isClubs: screen==='clubs', isSetup: screen==='setup', isAsk: screen==='ask',
+      toggleDark: ()=>this.setState(s=>({dark:!s.dark})),
+      goToday: ()=>this.go('today'), goClubs: ()=>this.go('clubs'), goAsk: ()=>this.go('ask'),
+      todayColor: screen==='today' ? 'var(--accent,#568DB3)' : 'var(--faint,#9A9486)',
+      clubsColor: screen==='clubs' ? 'var(--accent,#568DB3)' : 'var(--faint,#9A9486)',
+      askColor: screen==='ask' ? 'var(--accentText,#3C6C8F)' : 'var(--faint,#9A9486)',
+      quickOpen, quickBtnStyle, quickLinks, messages,
+      toggleQuick: ()=>this.setState(s=>({quickOpen:!s.quickOpen})),
+      closeQuick: ()=>{ if(this.state.quickOpen) this.setState({quickOpen:false}); },
+      segs, priorities, tasks, taskCount: tasks.length, filters, grades, emails, clubs, setupSteps, weeks,
+    };
+  }
+}
+</script>
+</body>
+</html>
