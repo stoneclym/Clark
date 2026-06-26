@@ -73,7 +73,6 @@ export default function App() {
     const credId = getStoredCredentialId()
     if (!credId) {
       setAuthed(true)
-      setScreen('setup')
     } else {
       authenticateBiometric(credId)
         .then(() => setAuthed(true))

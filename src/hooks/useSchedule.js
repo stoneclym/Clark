@@ -12,19 +12,21 @@ export function useSchedule() {
     supabase
       .from('settings')
       .select('*')
-      .single()
-      .then(({ data }) => {
-        if (!data) return
-        setSettings(data)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data: rows }) => {
+        if (!rows || rows.length === 0) return
+        const row = rows[0]
+        setSettings(row)
 
         const type = getDayType(
-          data.first_day,
-          data.first_day_type,
-          data.no_school_dates || [],
+          row.first_day,
+          row.first_day_type,
+          row.no_school_dates || [],
         )
         setDayType(type)
 
-        const schedule = type === 'A' ? data.a_schedule : data.b_schedule
+        const schedule = type === 'A' ? row.a_schedule : row.b_schedule
         if (schedule?.length) {
           const period = getCurrentPeriod(schedule)
           setCurrentPeriod(period)

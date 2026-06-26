@@ -96,14 +96,17 @@ export default function SetupScreen({ onComplete }) {
     setSaving(true)
     setSaveError('')
     try {
-      const { error } = await supabase.from('settings').upsert({
+      const { data: existing } = await supabase.from('settings').select('id').order('created_at', { ascending: false }).limit(1)
+      const payload = {
         first_day: firstDay || null,
         first_day_type: firstDayType,
         no_school_dates: noSchoolDates,
         a_schedule: aSchedule,
         b_schedule: bSchedule,
         cape_fear_classes: [capeFear1, capeFear2].filter(Boolean),
-      })
+      }
+      if (existing && existing.length > 0) payload.id = existing[0].id
+      const { error } = await supabase.from('settings').upsert(payload)
       if (error) throw error
       if (!skipComplete) onComplete()
     } catch (err) {
