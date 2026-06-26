@@ -1,43 +1,19 @@
-const PRIORITIES = [
-  { id: 'p1', title: 'Finish HOTA essay outline', meta: 'Due today', source: 'Canvas' },
-  { id: 'p2', title: 'Post NHS blood-drive flyer to Instagram', meta: 'Before lunch', source: 'NHS' },
-  { id: 'p3', title: 'Revise UNC supplemental essay', meta: 'Due Fri', source: 'College' },
-  { id: 'p4', title: 'Bio IA — data analysis section', meta: 'Next Bio class', source: 'Canvas' },
-  { id: 'p5', title: 'Email Spanish Club meeting reminder', meta: 'Tomorrow', source: 'Spanish' },
-]
+import { useState } from 'react'
+import { useTasks } from './hooks/useTasks.js'
+import { useGrades } from './hooks/useGrades.js'
+import { useEmails } from './hooks/useEmails.js'
+import { useSchedule } from './hooks/useSchedule.js'
+import { useBriefing } from './hooks/useBriefing.js'
+import { supabase } from './lib/supabase.js'
 
-const ALL_TASKS = [
-  { id: 't1', title: 'HOTA essay outline', cat: 'Class', tag: 'HOTA', due: 'Today', high: true },
-  { id: 't2', title: 'Bio IA — data analysis', cat: 'Class', tag: 'Biology HL', due: 'Next class', high: true },
-  { id: 't3', title: 'UNC supplemental — revise draft', cat: 'College', tag: 'College', due: 'Fri', high: true },
-  { id: 't4', title: 'NHS blood-drive flyer → Instagram', cat: 'Club', tag: 'NHS', due: 'Today', high: true },
-  { id: 't5', title: 'Spanish Club reminder email', cat: 'Club', tag: 'Spanish Club', due: 'Tomorrow', high: false },
-  { id: 't6', title: 'Read Pachinko ch. 7–9', cat: 'Class', tag: 'IB Lang', due: 'Mon', high: false },
-  { id: 't7', title: 'Collect prom venue quotes', cat: 'Club', tag: 'Senior Class', due: 'Wed', high: false },
-  { id: 't8', title: 'Math AA — problem set 14', cat: 'Class', tag: 'Math AA', due: 'Next class', high: false },
-]
+// ─── Calendar config ───────────────────────────────────────────
+const CAL_TODAY = new Date().getDate()
+const CAL_MONTH = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+const CAL_FIRST_DOW = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay()
+const CAL_DAYS = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
+const CAL_EVENTS = new Set([12, 18, 22, 25, 26, 30]) // populated from tasks in real use
 
-const GRADES = [
-  { id: 'g1', name: 'IB English: Lang & Lit', score: '6', pct: '92%', upd: 'Updated 2d ago', note: 'Paper 1 returned — strong analysis', ph: false },
-  { id: 'g2', name: 'History of the Americas', score: '5', pct: '87%', upd: 'Updated today', note: 'Essay rubric feedback posted', ph: false },
-  { id: 'g3', name: 'Math: Analysis & Approaches', score: '6', pct: '90%', upd: 'Updated 4d ago', note: '', ph: false },
-  { id: 'g4', name: 'Biology HL', score: '5', pct: '85%', upd: 'Updated 1d ago', note: 'IA draft due next class', ph: false },
-  { id: 'g5', name: 'Theory of Knowledge', score: 'A', pct: '', upd: 'Updated 1w ago', note: 'Exhibition on track', ph: false },
-  { id: 'g6', name: 'Cape Fear CC — Course I', score: '—', pct: '', upd: 'No grade yet', note: 'Add a grade via brain dump', ph: true },
-  { id: 'g7', name: 'Cape Fear CC — Course II', score: '—', pct: '', upd: 'No grade yet', note: 'Add a grade via brain dump', ph: true },
-]
-
-const EMAILS = [
-  { id: 'e1', from: 'Ms. Reyes · IB Coordinator', init: 'R', time: '8:14 AM', subj: 'EE final submission — deadline moved', snippet: 'The Extended Essay final upload has moved to Monday. Please confirm your supervisor sign-off before then.' },
-  { id: 'e2', from: 'Beta Club Secretary', init: 'B', time: 'Yesterday', subj: 'October service-hours form', snippet: 'Attaching the service-hours form for this month. VPs please review before the next meeting and flag discrepancies.' },
-  { id: 'e3', from: 'Counseling Office', init: 'C', time: 'Mon', subj: 'Senior transcript request window open', snippet: 'Transcript requests for early-action applications are open in Naviance. Submit by Oct 20 to guarantee processing.' },
-]
-
-const CAL_EVENTS = new Set([12, 18, 22, 25, 26, 30])
-const CAL_TODAY = 26
-const CAL_FIRST_DOW = 1  // June 2026: June 1 = Monday
-const CAL_DAYS = 30
-
+// ─── Shared UI primitives ──────────────────────────────────────
 function Label({ children }) {
   return (
     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)' }}>
@@ -48,10 +24,7 @@ function Label({ children }) {
 
 function Card({ children }) {
   return (
-    <div style={{
-      background: 'var(--card)', border: '1px solid var(--border)',
-      borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)',
-    }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)' }}>
       {children}
     </div>
   )
@@ -60,54 +33,45 @@ function Card({ children }) {
 function CheckBox({ done, small = false }) {
   const size = small ? 19 : 20
   return done ? (
-    <div style={{
-      flexShrink: 0, width: size, height: size, borderRadius: 6,
-      background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      marginTop: small ? 0 : 1,
-    }}>
+    <div style={{ flexShrink: 0, width: size, height: size, borderRadius: 6, background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: small ? 0 : 1 }}>
       <svg width={small ? 11 : 12} height={small ? 11 : 12} viewBox="0 0 24 24" fill="none">
         <path d="M5 12.5l4.2 4.2L19 7" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
     </div>
   ) : (
-    <div style={{
-      flexShrink: 0, width: size, height: size, borderRadius: 6,
-      border: '1.6px solid var(--borderStrong)', marginTop: small ? 0 : 1,
-    }}/>
+    <div style={{ flexShrink: 0, width: size, height: size, borderRadius: 6, border: '1.6px solid var(--borderStrong)', marginTop: small ? 0 : 1 }}/>
   )
 }
 
-function DashboardCard({ checked, onToggle }) {
+// ─── Dashboard Card ─────────────────────────────────────────────
+function DashboardCard({ priorities, toggleTask }) {
+  const { dayType, currentPeriod, dateLabel } = useSchedule()
+  const { briefing, generating, generate } = useBriefing()
+
+  const periodDisplay = currentPeriod
+    ? { label: currentPeriod.status === 'now' ? `Now · Period ${currentPeriod.period}` : `Next · Period ${currentPeriod.period}`, name: currentPeriod.className, time: currentPeriod.remaining, next: currentPeriod.nextClass }
+    : { label: 'No class right now', name: 'Free period', time: '', next: null }
+
+  const briefingText = briefing?.content || 'Good morning. Tap the refresh button to generate your morning briefing.'
+
   return (
     <Card>
       {/* Schedule strip */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        background: 'var(--cardAlt)', border: '1px solid var(--border)',
-        borderRadius: 14, padding: '12px 14px',
-      }}>
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          width: 44, height: 44, borderRadius: 12,
-          background: 'var(--accentSoft)', color: 'var(--accentText)', flexShrink: 0,
-        }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, background: 'var(--accentSoft)', color: 'var(--accentText)', flexShrink: 0 }}>
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>DAY</span>
-          <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 19, fontWeight: 600, lineHeight: 1 }}>B</span>
+          <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 19, fontWeight: 600, lineHeight: 1 }}>{dayType || '—'}</span>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Now · Period 2
-          </div>
-          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 16, fontWeight: 500, marginTop: 2, color: 'var(--text)' }}>
-            History of the Americas
-          </div>
+          <div style={{ fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{periodDisplay.label}</div>
+          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 16, fontWeight: 500, marginTop: 2, color: 'var(--text)' }}>{periodDisplay.name}</div>
         </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accentText)', lineHeight: 1 }}>
-            22<span style={{ fontSize: 11, fontWeight: 600 }}> min</span>
+        {periodDisplay.time && (
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accentText)', lineHeight: 1 }}>{periodDisplay.time}</div>
+            {periodDisplay.next && <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>til {periodDisplay.next}</div>}
           </div>
-          <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>til Bio HL</div>
-        </div>
+        )}
       </div>
 
       {/* AI Briefing */}
@@ -115,85 +79,119 @@ function DashboardCard({ checked, onToggle }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <Label>This morning</Label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
-            <span style={{ fontSize: 11 }}>7:42 AM</span>
-            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accentText)' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {briefing && <span style={{ fontSize: 11 }}>{new Date(briefing.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
+            <button onClick={generate} disabled={generating} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accentText)', background: 'none', border: 'none', padding: 0, opacity: generating ? 0.5 : 1 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: generating ? 'spin 1s linear infinite' : 'none' }}>
                 <path d="M20 11a8 8 0 1 0-1 6"/>
                 <path d="M20 4v5h-5"/>
               </svg>
-            </div>
+            </button>
           </div>
         </div>
-        <p style={{
-          margin: 0,
-          fontFamily: "'Source Serif 4', Georgia, serif",
-          fontSize: 15.5, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em',
-        }}>
-          Good morning. It's a B day — History of the Americas, Biology HL, then Spanish Club after school. Two things are time-sensitive: your HOTA essay outline is due by end of day, and the NHS blood-drive flyer should go up on Instagram before lunch. Your UNC supplemental is still a rough draft with a Friday deadline, so thirty focused minutes today would help. Everything else is on track.
+        <p style={{ margin: 0, fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
+          {briefingText}
         </p>
       </div>
 
       {/* Priorities */}
-      <div style={{ marginTop: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Label>Priorities</Label>
-          <div style={{ fontSize: 11, color: 'var(--faint)' }}>Reordered by Clark · 8m ago</div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {PRIORITIES.map(item => {
-            const done = !!checked[item.id]
-            return (
-              <div key={item.id} onClick={() => onToggle(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
-                <CheckBox done={done} />
+      {priorities.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Label>Priorities</Label>
+            <div style={{ fontSize: 11, color: 'var(--faint)' }}>Reordered by Clark</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {priorities.map(item => (
+              <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
+                <CheckBox done={item.done} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: done ? 'line-through' : 'none', color: done ? 'var(--faint)' : 'var(--text)' }}>
-                    {item.title}
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                    <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{item.meta}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>
-                      {item.source}
-                    </span>
+                    <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{item.due_date}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>{item.source}</span>
                   </div>
                 </div>
               </div>
-            )
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </Card>
   )
 }
 
+// ─── Brain Dump Card ────────────────────────────────────────────
 function BrainDumpCard() {
+  const [text, setText] = useState('')
+  const [status, setStatus] = useState(null) // null | 'parsing' | 'done' | 'error'
+  const [lastResult, setLastResult] = useState(null)
+  const [listening, setListening] = useState(false)
+
+  const parse = async () => {
+    if (!text.trim()) return
+    setStatus('parsing')
+    try {
+      const { data, error } = await supabase.functions.invoke('parse-brain-dump', {
+        body: { text },
+      })
+      if (error) throw error
+      setLastResult(data?.parsed)
+      setStatus('done')
+      setText('')
+    } catch {
+      setStatus('error')
+    }
+  }
+
+  const startListening = () => {
+    if (!window.SpeechRecognition && !window.webkitSpeechRecognition) return
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const recognition = new SR()
+    recognition.lang = 'en-US'
+    recognition.continuous = false
+    recognition.interimResults = false
+    recognition.onresult = (e) => setText(prev => prev + ' ' + e.results[0][0].transcript)
+    recognition.onend = () => setListening(false)
+    recognition.start()
+    setListening(true)
+  }
+
+  const taskCount = lastResult?.tasks?.length || 0
+  const gradeCount = lastResult?.grades?.length || 0
+  const summary = status === 'done' && lastResult
+    ? `Parsed · ${[taskCount && `${taskCount} task${taskCount > 1 ? 's' : ''}`, gradeCount && `${gradeCount} grade${gradeCount > 1 ? 's' : ''}`].filter(Boolean).join(', ')}`
+    : 'Tell Clark anything and it distributes items automatically'
+
   return (
     <Card>
       <Label>Brain Dump</Label>
-      <div style={{
-        marginTop: 12, background: 'var(--cardAlt)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: 16, minHeight: 92,
-      }}>
-        <div style={{ fontSize: 14.5, color: 'var(--faint)', lineHeight: 1.5 }}>
-          Tell Clark anything — "Bio notes are due next class," "Got an 88 on the HOTA essay," "Remind the Spanish Club about Thursday"…
-        </div>
-      </div>
+      <textarea
+        value={text}
+        onChange={e => { setText(e.target.value); setStatus(null) }}
+        placeholder={'Tell Clark anything — "Bio notes are due next class," "Got an 88 on the HOTA essay," "Remind the Spanish Club about Thursday"…'}
+        onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') parse() }}
+        style={{
+          display: 'block', width: '100%', marginTop: 12,
+          background: 'var(--cardAlt)', border: '1px solid var(--border)',
+          borderRadius: 16, padding: 16, minHeight: 92, resize: 'none',
+          fontFamily: "'Hanken Grotesk', system-ui, sans-serif",
+          fontSize: 14.5, color: text ? 'var(--text)' : 'var(--faint)',
+          lineHeight: 1.5, outline: 'none', boxSizing: 'border-box',
+        }}
+      />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
-        <div style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.4 }}>
-          Last parsed · 3 tasks, 1 grade<br />8:02 AM
+        <div style={{ fontSize: 11.5, color: status === 'error' ? '#E05252' : 'var(--muted)', lineHeight: 1.4 }}>
+          {status === 'parsing' ? 'Parsing…' : status === 'error' ? 'Something went wrong — try again' : summary}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accentText)' }}>Hold to speak</span>
+          {text.trim() && (
+            <button onClick={parse} disabled={status === 'parsing'} style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--accentText)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              {status === 'parsing' ? 'Sending…' : '⌘↵ Send'}
+            </button>
+          )}
           <div style={{ position: 'relative', width: 52, height: 52, flexShrink: 0 }}>
-            <div style={{
-              position: 'absolute', inset: 0, borderRadius: '50%',
-              background: 'var(--accent)',
-              animation: 'clarkPulse 2.4s ease-out infinite',
-            }}/>
-            <div style={{
-              position: 'relative', width: 52, height: 52, borderRadius: '50%',
-              background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(86,141,179,0.35)', cursor: 'pointer',
-            }}>
+            {listening && <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--accent)', animation: 'clarkPulse 2.4s ease-out infinite' }}/>}
+            <div onClick={startListening} style={{ position: 'relative', width: 52, height: 52, borderRadius: '50%', background: listening ? '#E05252' : 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(86,141,179,0.35)', cursor: 'pointer' }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                 <rect x="9" y="3" width="6" height="11" rx="3" fill="#fff"/>
                 <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" stroke="#fff" strokeWidth="1.8" strokeLinecap="round"/>
@@ -206,68 +204,42 @@ function BrainDumpCard() {
   )
 }
 
-function TasksCard({ filter, onFilter, checked, onToggle }) {
-  const tasks = ALL_TASKS.filter(t =>
-    filter === 'All' ? true : filter === 'Priority' ? t.high : t.cat === filter
+// ─── Tasks Card ─────────────────────────────────────────────────
+function TasksCard({ filter, onFilter }) {
+  const { tasks, toggleTask } = useTasks()
+
+  const filtered = tasks.filter(t =>
+    filter === 'All' ? true : filter === 'Priority' ? t.priority : t.category === filter
   )
 
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Label>Tasks</Label>
-        <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{tasks.length} active</div>
+        <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{filtered.length} active</div>
       </div>
       <div style={{ display: 'flex', gap: 7, marginTop: 13, flexWrap: 'wrap' }}>
         {['All', 'Class', 'Club', 'Priority'].map(label => (
-          <button
-            key={label}
-            onClick={() => onFilter(label)}
-            style={{
-              padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600,
-              cursor: 'pointer',
-              background: label === filter ? 'var(--accent)' : 'transparent',
-              color: label === filter ? '#fff' : 'var(--muted)',
-              border: label === filter ? 'none' : '1px solid var(--border)',
-            }}
-          >
+          <button key={label} onClick={() => onFilter(label)} style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: label === filter ? 'var(--accent)' : 'transparent', color: label === filter ? '#fff' : 'var(--muted)', border: label === filter ? 'none' : '1px solid var(--border)' }}>
             {label}
           </button>
         ))}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-        {tasks.map(item => {
-          const done = !!checked[item.id]
-          return (
-            <div key={item.id} onClick={() => onToggle(item.id)} style={{
-              display: 'flex', alignItems: 'center', gap: 11,
-              padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer',
-            }}>
-              <CheckBox done={done} small />
-              <div style={{
-                flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500,
-                textDecoration: done ? 'line-through' : 'none',
-                color: done ? 'var(--faint)' : 'var(--text)',
-              }}>
-                {item.title}
-              </div>
-              <span style={{
-                fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6,
-                background: 'var(--cardAlt)', color: 'var(--muted)',
-                border: '1px solid var(--border)', whiteSpace: 'nowrap',
-              }}>
-                {item.tag}
-              </span>
-              <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {item.due}
-              </span>
-            </div>
-          )
-        })}
+        {filtered.map(item => (
+          <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+            <CheckBox done={item.done} small />
+            <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
+            <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{item.tag}</span>
+            <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{item.due_date}</span>
+          </div>
+        ))}
       </div>
     </Card>
   )
 }
 
+// ─── Calendar Card ───────────────────────────────────────────────
 function CalendarCard() {
   const cells = []
   for (let i = 0; i < CAL_FIRST_DOW; i++) cells.push(null)
@@ -280,7 +252,7 @@ function CalendarCard() {
     <Card>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
         <Label>Calendar</Label>
-        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>June 2026</div>
+        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>{CAL_MONTH}</div>
       </div>
       <div style={{ display: 'flex', marginBottom: 4 }}>
         {['S','M','T','W','T','F','S'].map((d, i) => (
@@ -297,27 +269,12 @@ function CalendarCard() {
               <div key={di} style={{ flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                 {day != null && (
                   <>
-                    <div style={isToday ? {
-                      width: 30, height: 30, borderRadius: '50%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12.5, fontWeight: 600, background: 'var(--accent)', color: '#fff',
-                    } : isEvent ? {
-                      width: 30, height: 30,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12.5, fontWeight: 600, color: 'var(--accentText)',
-                    } : {
-                      width: 30, height: 30,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12.5, fontWeight: 500, color: 'var(--text)',
-                    }}>
+                    <div style={isToday ? { width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600, background: 'var(--accent)', color: '#fff' }
+                      : isEvent ? { width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600, color: 'var(--accentText)' }
+                      : { width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>
                       {day}
                     </div>
-                    {hasEvent && (
-                      <div style={{
-                        position: 'absolute', bottom: 4,
-                        width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)',
-                      }}/>
-                    )}
+                    {hasEvent && <div style={{ position: 'absolute', bottom: 4, width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }}/>}
                   </>
                 )}
               </div>
@@ -329,35 +286,27 @@ function CalendarCard() {
   )
 }
 
+// ─── Grades Card ─────────────────────────────────────────────────
 function GradesCard() {
+  const { grades } = useGrades()
+
   return (
     <Card>
-      <div style={{ marginBottom: 6 }}>
-        <Label>Grades</Label>
-      </div>
-      {GRADES.map(g => (
-        <div key={g.id} style={{
-          display: 'flex', alignItems: 'flex-start', gap: 12,
-          padding: '13px 0', borderTop: '1px solid var(--border)',
-        }}>
+      <div style={{ marginBottom: 6 }}><Label>Grades</Label></div>
+      {grades.map(g => (
+        <div key={g.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '13px 0', borderTop: '1px solid var(--border)' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, lineHeight: 1.25, color: 'var(--text)' }}>
-              {g.name}
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, lineHeight: 1.25, color: 'var(--text)' }}>{g.class_name}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>
+              {g.last_updated ? `Updated ${new Date(g.last_updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'No grade yet'}
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>{g.upd}</div>
-            {g.note && (
-              <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 3, fontStyle: 'italic' }}>"{g.note}"</div>
-            )}
+            {g.note && <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 3, fontStyle: 'italic' }}>"{g.note}"</div>}
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{
-              fontFamily: "'Source Serif 4', Georgia, serif",
-              fontSize: g.ph ? 22 : 25, fontWeight: g.ph ? 500 : 600,
-              color: g.ph ? 'var(--faint)' : 'var(--accentText)', lineHeight: 1,
-            }}>
-              {g.score}
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: g.is_placeholder ? 22 : 25, fontWeight: g.is_placeholder ? 500 : 600, color: g.is_placeholder ? 'var(--faint)' : 'var(--accentText)', lineHeight: 1 }}>
+              {g.score || '—'}
             </div>
-            {g.pct && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{g.pct}</div>}
+            {g.percentage && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{g.percentage}</div>}
           </div>
         </div>
       ))}
@@ -365,53 +314,54 @@ function GradesCard() {
   )
 }
 
+// ─── Inbox Card ──────────────────────────────────────────────────
 function InboxCard() {
+  const { emails, draftReply } = useEmails()
+  const [drafts, setDrafts] = useState({})
+  const [loading, setLoading] = useState({})
+
+  const handleDraftReply = async (emailId) => {
+    if (drafts[emailId]) { setDrafts(d => ({ ...d, [emailId]: null })); return }
+    setLoading(l => ({ ...l, [emailId]: true }))
+    try {
+      const draft = await draftReply(emailId)
+      setDrafts(d => ({ ...d, [emailId]: draft }))
+    } finally {
+      setLoading(l => ({ ...l, [emailId]: false }))
+    }
+  }
+
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <Label>Inbox</Label>
         <div style={{ fontSize: 11, color: 'var(--faint)' }}>via Gmail</div>
       </div>
-      {EMAILS.map(m => (
+      {emails.map(m => (
         <div key={m.id} style={{ padding: '14px 0', borderTop: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: '50%',
-              background: 'var(--accentSoft)', color: 'var(--accentText)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 700, flexShrink: 0,
-            }}>
-              {m.init}
-            </div>
-            <div style={{
-              flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              color: 'var(--text)',
-            }}>
-              {m.from}
-            </div>
-            <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>{m.time}</span>
+            <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accentSoft)', color: 'var(--accentText)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m.initials}</div>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>{m.from_name}</div>
+            <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>{new Date(m.received_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
           </div>
-          <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 9, color: 'var(--text)' }}>{m.subj}</div>
+          <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 9, color: 'var(--text)' }}>{m.subject}</div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, marginTop: 3 }}>{m.snippet}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 11 }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontSize: 12, fontWeight: 600, color: '#fff',
-              background: 'var(--accent)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer',
-            }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 20h4L19 9l-4-4L4 16v4z"/>
-                <path d="M14 6l4 4"/>
-              </svg>
-              Draft reply
+          {drafts[m.id] && (
+            <div style={{ marginTop: 11, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
+              {drafts[m.id]}
             </div>
-            <span style={{ fontSize: 10.5, color: 'var(--faint)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accentText)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12.5l4.5 4.5L19 7"/>
-              </svg>
-              headers cleaned
-            </span>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 11 }}>
+            <div onClick={() => handleDraftReply(m.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#fff', background: 'var(--accent)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer', opacity: loading[m.id] ? 0.6 : 1 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>
+              {loading[m.id] ? 'Drafting…' : drafts[m.id] ? 'Hide draft' : 'Draft reply'}
+            </div>
+            {m.headers_cleaned && (
+              <span style={{ fontSize: 10.5, color: 'var(--faint)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accentText)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+                headers cleaned
+              </span>
+            )}
           </div>
         </div>
       ))}
@@ -419,12 +369,15 @@ function InboxCard() {
   )
 }
 
-export default function TodayScreen({ checked, filter, onToggle, onFilter, onCloseQuick }) {
+// ─── Screen ──────────────────────────────────────────────────────
+export default function TodayScreen({ filter, onFilter, onCloseQuick }) {
+  const { tasks, priorities, toggleTask } = useTasks()
+
   return (
     <div onClick={onCloseQuick} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
-      <DashboardCard checked={checked} onToggle={onToggle} />
+      <DashboardCard priorities={priorities} toggleTask={toggleTask} />
       <BrainDumpCard />
-      <TasksCard filter={filter} onFilter={onFilter} checked={checked} onToggle={onToggle} />
+      <TasksCard filter={filter} onFilter={onFilter} />
       <CalendarCard />
       <GradesCard />
       <InboxCard />
