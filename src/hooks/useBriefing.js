@@ -12,7 +12,7 @@ export function useBriefing() {
       .select('*')
       .order('generated_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
       .then(({ data }) => {
         if (data) setBriefing(data)
       })
