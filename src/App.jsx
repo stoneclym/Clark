@@ -187,17 +187,14 @@ export default function App() {
         )}
 
         <ErrorBoundary>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-            {screen === 'today' && (
-              <TodayScreen
-                filter={filter}
-                onFilter={setFilter}
-                onCloseQuick={closeQuick}
-              />
-            )}
-            {screen === 'clubs' && (
+          {/* Relative container — today/clubs stay mounted in their own scroll layers */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'today' ? 'block' : 'none' }}>
+              <TodayScreen filter={filter} onFilter={setFilter} onCloseQuick={closeQuick} />
+            </div>
+            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'clubs' ? 'block' : 'none' }}>
               <ClubsScreen onCloseQuick={closeQuick} />
-            )}
+            </div>
             {screen === 'ask' && (
               <AskScreen onBack={() => setScreen('today')} />
             )}
