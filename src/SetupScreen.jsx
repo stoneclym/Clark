@@ -92,7 +92,7 @@ export default function SetupScreen({ onComplete }) {
     }
   }, [noSchoolInput, noSchoolDates])
 
-  const finish = useCallback(async () => {
+  const finish = useCallback(async ({ skipComplete = false } = {}) => {
     setSaving(true)
     setSaveError('')
     try {
@@ -105,9 +105,10 @@ export default function SetupScreen({ onComplete }) {
         cape_fear_classes: [capeFear1, capeFear2].filter(Boolean),
       })
       if (error) throw error
-      onComplete()
+      if (!skipComplete) onComplete()
     } catch (err) {
       setSaveError(err.message || 'Failed to save. Try again.')
+    } finally {
       setSaving(false)
     }
   }, [firstDay, firstDayType, noSchoolDates, aSchedule, bSchedule, capeFear1, capeFear2, onComplete])
@@ -156,6 +157,7 @@ export default function SetupScreen({ onComplete }) {
             error={faceIdError}
             onRegister={registerFaceId}
             onNext={() => setStep(1)}
+            onEnterNow={onComplete}
           />
         )}
         {step === 1 && (
@@ -260,7 +262,7 @@ export default function SetupScreen({ onComplete }) {
 
 /* ── Step components ───────────────────────────────────── */
 
-function StepFaceId({ done, loading, error, onRegister, onNext }) {
+function StepFaceId({ done, loading, error, onRegister, onNext, onEnterNow }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{
@@ -323,6 +325,9 @@ function StepFaceId({ done, loading, error, onRegister, onNext }) {
       {!done && (
         <button onClick={onNext} style={btnSecondary}>Skip for now</button>
       )}
+      <button onClick={onEnterNow} style={{ ...btnSecondary, fontSize: 12, marginTop: -6, opacity: 0.5 }}>
+        Skip all setup — enter Clark now
+      </button>
     </div>
   )
 }
@@ -542,7 +547,9 @@ const OUTLOOK_SCOPES = [
 ].join(' ')
 
 function StepGmail({ saving, error, onFinish }) {
-  const connectOutlook = () => {
+  const connectOutlook = async () => {
+    // Save settings first so they aren't lost during the OAuth redirect
+    await onFinish({ skipComplete: true })
     const params = new URLSearchParams({
       client_id: MICROSOFT_CLIENT_ID,
       response_type: 'code',

@@ -62,11 +62,11 @@ export default function App() {
     const state = params.get('state')
     if (code && state === 'outlook_auth') {
       window.history.replaceState({}, '', window.location.pathname)
+      // Go to Today immediately; token exchange happens in background
+      setAuthed(true)
+      setScreen('today')
       supabase.functions.invoke('microsoft-callback', {
         body: { code, redirect_uri: window.location.origin },
-      }).then(() => {
-        setAuthed(true)
-        setScreen('today')
       })
       return
     }
