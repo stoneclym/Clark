@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Component } from 'react'
 import Header from './Header.jsx'
 import TabBar from './TabBar.jsx'
 import TodayScreen from './TodayScreen.jsx'
@@ -7,6 +7,30 @@ import AskScreen from './AskScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
 import { supabase } from './lib/supabase.js'
 import { getStoredCredentialId, authenticateBiometric } from './lib/webauthn.js'
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null } }
+  static getDerivedStateFromError(err) { return { error: err } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 }}>
+          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>Something went wrong</div>
+          <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.5 }}>
+            {this.state.error?.message || 'Unknown error'}
+          </div>
+          <button
+            onClick={() => { this.setState({ error: null }); window.location.reload() }}
+            style={{ padding: '10px 20px', borderRadius: 10, background: 'var(--accent)', color: '#fff', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Reload Clark
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const LIGHT = {
   bg: '#F0EEE6', card: '#FFFFFF', cardAlt: '#FAF8F2',
@@ -157,27 +181,29 @@ export default function App() {
           />
         )}
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          {screen === 'today' && (
-            <TodayScreen
-              filter={filter}
-              onFilter={setFilter}
-              onCloseQuick={closeQuick}
-            />
-          )}
-          {screen === 'clubs' && (
-            <ClubsScreen onCloseQuick={closeQuick} />
-          )}
-          {screen === 'ask' && (
-            <AskScreen
-              dark={dark}
-              onBack={() => setScreen('today')}
-            />
-          )}
-          {screen === 'setup' && (
-            <SetupScreen onComplete={() => { setAuthed(true); setScreen('today') }} />
-          )}
-        </div>
+        <ErrorBoundary>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+            {screen === 'today' && (
+              <TodayScreen
+                filter={filter}
+                onFilter={setFilter}
+                onCloseQuick={closeQuick}
+              />
+            )}
+            {screen === 'clubs' && (
+              <ClubsScreen onCloseQuick={closeQuick} />
+            )}
+            {screen === 'ask' && (
+              <AskScreen
+                dark={dark}
+                onBack={() => setScreen('today')}
+              />
+            )}
+            {screen === 'setup' && (
+              <SetupScreen onComplete={() => { setAuthed(true); setScreen('today') }} />
+            )}
+          </div>
+        </ErrorBoundary>
 
         {showChrome && (
           <TabBar screen={screen} onNavigate={setScreen} />

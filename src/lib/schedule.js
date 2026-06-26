@@ -37,40 +37,52 @@ export function getDayType(firstDay, firstType, noSchool, target) {
 
 /**
  * Returns which period is current or next, plus time remaining.
- * @param {Array<{period: number, class_name: string, start_time: string, end_time: string}>} schedule
- * @param {Date} now
- * @returns {{ status: 'now'|'next', period: number, className: string, remaining: string, nextClass: string|null }}
+ * Supports both "H:MM AM/PM" (12-hour) and "HH:MM" (24-hour) formats,
+ * and both `start`/`end` and `start_time`/`end_time` field names.
  */
 export function getCurrentPeriod(schedule, now = new Date()) {
   const timeToMinutes = (t) => {
+    if (!t) return null
+    const amPm = t.match(/^(\d+):(\d+)\s*(AM|PM)$/i)
+    if (amPm) {
+      let h = parseInt(amPm[1], 10)
+      const m = parseInt(amPm[2], 10)
+      if (amPm[3].toUpperCase() === 'PM' && h !== 12) h += 12
+      if (amPm[3].toUpperCase() === 'AM' && h === 12) h = 0
+      return h * 60 + m
+    }
     const [h, m] = t.split(':').map(Number)
-    return h * 60 + m
+    return isNaN(h) ? null : h * 60 + m
   }
+
   const nowMins = now.getHours() * 60 + now.getMinutes()
 
   for (let i = 0; i < schedule.length; i++) {
-    const { period, class_name, start_time, end_time } = schedule[i]
-    const start = timeToMinutes(start_time)
-    const end = timeToMinutes(end_time)
+    const p = schedule[i]
+    const label = p.name || (p.period != null ? `Period ${p.period}` : 'Class')
+    const className = p.class_name || ''
+    const startMins = timeToMinutes(p.start_time ?? p.start)
+    const endMins = timeToMinutes(p.end_time ?? p.end)
+    if (startMins == null || endMins == null) continue
 
-    if (nowMins >= start && nowMins < end) {
-      const remaining = end - nowMins
+    if (nowMins >= startMins && nowMins < endMins) {
+      const remaining = endMins - nowMins
       const next = schedule[i + 1]
       return {
         status: 'now',
-        period,
-        className: class_name,
+        period: label,
+        className,
         remaining: `${remaining} min`,
-        nextClass: next ? next.class_name : null,
+        nextClass: next ? (next.class_name || '') : null,
       }
     }
 
-    if (nowMins < start) {
-      const minsUntil = start - nowMins
+    if (nowMins < startMins) {
+      const minsUntil = startMins - nowMins
       return {
         status: 'next',
-        period,
-        className: class_name,
+        period: label,
+        className,
         remaining: `in ${minsUntil} min`,
         nextClass: null,
       }

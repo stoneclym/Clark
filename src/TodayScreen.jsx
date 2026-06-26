@@ -49,7 +49,7 @@ function DashboardCard({ priorities, toggleTask }) {
   const { briefing, generating, generate } = useBriefing()
 
   const periodDisplay = currentPeriod
-    ? { label: currentPeriod.status === 'now' ? `Now · Period ${currentPeriod.period}` : `Next · Period ${currentPeriod.period}`, name: currentPeriod.className, time: currentPeriod.remaining, next: currentPeriod.nextClass }
+    ? { label: currentPeriod.status === 'now' ? `Now · ${currentPeriod.period}` : `Next · ${currentPeriod.period}`, name: currentPeriod.className, time: currentPeriod.remaining, next: currentPeriod.nextClass }
     : { label: 'No class right now', name: 'Free period', time: '', next: null }
 
   const briefingText = briefing?.content || 'Good morning. Tap the refresh button to generate your morning briefing.'
