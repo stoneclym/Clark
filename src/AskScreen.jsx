@@ -176,7 +176,7 @@ export default function AskScreen({ onBack }) {
               minHeight: 22, maxHeight: 120,
             }}
             onInput={e => {
-              const el = e.target as HTMLTextAreaElement
+              const el = e.currentTarget
               el.style.height = 'auto'
               el.style.height = el.scrollHeight + 'px'
             }}
