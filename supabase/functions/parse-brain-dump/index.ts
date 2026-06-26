@@ -73,53 +73,55 @@ Deno.serve(async (req) => {
     })
   }
 
+  const dbErrors: string[] = []
+
   // Insert tasks
   if (Array.isArray(parsed.tasks) && parsed.tasks.length) {
-    const { count } = await supabase
-      .from('tasks')
-      .select('*', { count: 'exact', head: true })
+    const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
     const baseRank = (count || 0) + 1
 
-    await supabase.from('tasks').insert(
+    const { error: taskError } = await supabase.from('tasks').insert(
       (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => ({
-        title: t.title,
-        category: t.category,
-        tag: t.tag,
-        due_date: t.due_date,
-        priority: t.priority ?? false,
-        priority_rank: t.priority ? baseRank + i : null,
-        source: t.source || 'Brain Dump',
+        title: String(t.title || '').trim() || 'Untitled task',
+        category: t.category || 'Class',
+        tag: t.tag || null,
+        due_date: t.due_date || null,
+        priority: t.priority === true,
+        priority_rank: t.priority === true ? baseRank + i : null,
+        source: 'Brain Dump',
       }))
     )
+    if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
   }
 
   // Update grades
   if (Array.isArray(parsed.grades) && parsed.grades.length) {
     for (const g of parsed.grades as Array<Record<string, unknown>>) {
-      await supabase
+      const { error: gradeError } = await supabase
         .from('grades')
-        .update({
-          score: g.score,
-          percentage: g.percentage,
-          note: g.note,
-          last_updated: new Date().toISOString(),
-        })
+        .update({ score: g.score, percentage: g.percentage, note: g.note, last_updated: new Date().toISOString() })
         .ilike('class_name', `%${(g.class_name as string).split(' ')[0]}%`)
+      if (gradeError) dbErrors.push(`grades: ${gradeError.message}`)
     }
   }
 
   // Insert club tasks
   if (Array.isArray(parsed.club_tasks) && parsed.club_tasks.length) {
     for (const ct of parsed.club_tasks as Array<Record<string, unknown>>) {
-      const { data: club } = await supabase
-        .from('clubs')
-        .select('id')
-        .ilike('name', `%${(ct.club_name as string).split(' ')[0]}%`)
-        .single()
-      if (club) {
-        await supabase.from('club_tasks').insert({ club_id: club.id, task_text: ct.task_text })
+      const { data: clubs } = await supabase.from('clubs').select('id')
+        .ilike('name', `%${(ct.club_name as string).split(' ')[0]}%`).limit(1)
+      if (clubs && clubs.length > 0) {
+        const { error: ctError } = await supabase.from('club_tasks').insert({ club_id: clubs[0].id, task_text: ct.task_text })
+        if (ctError) dbErrors.push(`club_tasks: ${ctError.message}`)
       }
     }
+  }
+
+  if (dbErrors.length > 0) {
+    return new Response(
+      JSON.stringify({ error: 'Some saves failed', details: dbErrors, parsed }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
   }
 
   return new Response(

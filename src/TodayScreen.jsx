@@ -121,7 +121,7 @@ function DashboardCard({ priorities, toggleTask }) {
 }
 
 // ─── Brain Dump Card ────────────────────────────────────────────
-function BrainDumpCard() {
+function BrainDumpCard({ onParsed }) {
   const [text, setText] = useState('')
   const [status, setStatus] = useState(null) // null | 'parsing' | 'done' | 'error'
   const [lastResult, setLastResult] = useState(null)
@@ -137,6 +137,7 @@ function BrainDumpCard() {
       setLastResult(data?.parsed)
       setStatus('done')
       setText('')
+      onParsed?.()
     } catch {
       setStatus('error')
     }
@@ -376,12 +377,12 @@ function InboxCard() {
 
 // ─── Screen ──────────────────────────────────────────────────────
 export default function TodayScreen({ filter, onFilter, onCloseQuick }) {
-  const { tasks, priorities, toggleTask } = useTasks()
+  const { tasks, priorities, toggleTask, refetch } = useTasks()
 
   return (
     <div onClick={onCloseQuick} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
       <DashboardCard priorities={priorities} toggleTask={toggleTask} />
-      <BrainDumpCard />
+      <BrainDumpCard onParsed={refetch} />
       <TasksCard tasks={tasks} toggleTask={toggleTask} filter={filter} onFilter={onFilter} />
       <CalendarCard />
       <GradesCard />
