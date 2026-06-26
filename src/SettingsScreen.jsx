@@ -1,9 +1,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase.js'
 
+const MICROSOFT_CLIENT_ID = 'c92f4bf4-9da6-4d38-b49d-715a2bee4beb'
+const OUTLOOK_SCOPES = [
+  'https://graph.microsoft.com/Mail.Read',
+  'offline_access',
+  'User.Read',
+].join(' ')
+
 export default function SettingsScreen({ dark, onToggleDark, onBack }) {
   const [completedTasks, setCompletedTasks] = useState([])
   const [loading, setLoading] = useState(true)
+  const [outlookConnecting, setOutlookConnecting] = useState(false)
 
   useEffect(() => {
     supabase
@@ -17,6 +25,19 @@ export default function SettingsScreen({ dark, onToggleDark, onBack }) {
         setLoading(false)
       })
   }, [])
+
+  const connectOutlook = () => {
+    setOutlookConnecting(true)
+    const params = new URLSearchParams({
+      client_id: MICROSOFT_CLIENT_ID,
+      response_type: 'code',
+      redirect_uri: window.location.origin,
+      scope: OUTLOOK_SCOPES,
+      state: 'outlook_auth',
+      response_mode: 'query',
+    })
+    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`
+  }
 
   const restoreTask = async (id) => {
     setCompletedTasks(prev => prev.filter(t => t.id !== id))
@@ -114,6 +135,53 @@ export default function SettingsScreen({ dark, onToggleDark, onBack }) {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
                 }}/>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Email */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 12 }}>
+            Email
+          </div>
+          <div style={{
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 16, overflow: 'hidden',
+          }}>
+            <div
+              onClick={!outlookConnecting ? connectOutlook : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 18px', cursor: outlookConnecting ? 'default' : 'pointer',
+                opacity: outlookConnecting ? 0.6 : 1,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: 10,
+                  background: '#0078D4',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
+                    <path d="M8 14l16 12L40 14" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+                    <rect x="8" y="14" width="32" height="20" rx="2" stroke="#fff" strokeWidth="2" fill="none"/>
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--text)' }}>
+                    {outlookConnecting ? 'Redirecting…' : 'Connect Outlook'}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 1 }}>
+                    Sign in with your school Microsoft account
+                  </div>
+                </div>
+              </div>
+              {!outlookConnecting && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              )}
             </div>
           </div>
         </div>
