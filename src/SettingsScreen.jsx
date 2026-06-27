@@ -8,7 +8,7 @@ const OUTLOOK_SCOPES = [
   'User.Read',
 ].join(' ')
 
-export default function SettingsScreen({ dark, onToggleDark, onBack }) {
+export default function SettingsScreen({ dark, onBack }) {
   const [completedTasks, setCompletedTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [outlookConnecting, setOutlookConnecting] = useState(false)
@@ -88,13 +88,7 @@ export default function SettingsScreen({ dark, onToggleDark, onBack }) {
             background: 'var(--card)', border: '1px solid var(--border)',
             borderRadius: 16, overflow: 'hidden',
           }}>
-            <div
-              onClick={onToggleDark}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '16px 18px', cursor: 'pointer',
-              }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
                   width: 34, height: 34, borderRadius: 10,
@@ -114,26 +108,20 @@ export default function SettingsScreen({ dark, onToggleDark, onBack }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--text)' }}>
-                    {dark ? 'Dark mode' : 'Light mode'}
+                    System appearance
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 1 }}>
-                    Tap to switch
+                    Currently {dark ? 'dark' : 'light'} based on this device
                   </div>
                 </div>
               </div>
-              {/* Toggle pill */}
               <div style={{
-                width: 46, height: 26, borderRadius: 999,
-                background: dark ? 'var(--accent)' : 'var(--border)',
-                position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                padding: '5px 10px', borderRadius: 999,
+                background: 'var(--accentSoft)', color: 'var(--accentText)',
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+                textTransform: 'uppercase', flexShrink: 0,
               }}>
-                <div style={{
-                  position: 'absolute', top: 3,
-                  left: dark ? 23 : 3,
-                  width: 20, height: 20, borderRadius: '50%',
-                  background: '#fff', transition: 'left 0.2s',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                }}/>
+                Auto
               </div>
             </div>
           </div>

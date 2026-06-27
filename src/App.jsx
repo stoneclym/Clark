@@ -46,14 +46,29 @@ const DARK = {
 
 const ACCENT = '#568DB3'
 
+function systemPrefersDark() {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
+}
+
 export default function App() {
   const [screen, setScreen] = useState('today')
-  const [dark, setDark] = useState(false)
+  const [dark, setDark] = useState(systemPrefersDark)
   const [filter, setFilter] = useState('All')
   const [quickOpen, setQuickOpen] = useState(false)
 
   // Auth state: null=checking, false=locked, true=unlocked
   const [authed, setAuthed] = useState(null)
+
+  useEffect(() => {
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+    if (!media) return
+
+    const syncSystemTheme = () => setDark(media.matches)
+    syncSystemTheme()
+
+    media.addEventListener('change', syncSystemTheme)
+    return () => media.removeEventListener('change', syncSystemTheme)
+  }, [])
 
   useEffect(() => {
     // Handle Microsoft OAuth callback (?code=...&state=outlook_auth)
@@ -201,7 +216,6 @@ export default function App() {
             {screen === 'settings' && (
               <SettingsScreen
                 dark={dark}
-                onToggleDark={() => setDark(d => !d)}
                 onBack={() => setScreen('today')}
               />
             )}
