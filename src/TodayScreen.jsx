@@ -323,10 +323,12 @@ function gradeNumber(percentage) {
 
 function GradesCard() {
   const { grades } = useGrades()
-  const formattedGrades = grades
-    .map(g => ({ ...g, displayName: gradeDisplayName(g.class_name), gradeNumber: gradeNumber(g.percentage) }))
-    .filter(g => g.displayName)
-    .sort((a, b) => FORMAL_GRADE_ORDER.indexOf(a.displayName) - FORMAL_GRADE_ORDER.indexOf(b.displayName))
+  const formattedGrades = FORMAL_GRADE_ORDER.map(displayName => {
+    const match = grades.find(g => gradeDisplayName(g.class_name) === displayName)
+    return match
+      ? { ...match, displayName, gradeNumber: gradeNumber(match.percentage) }
+      : { id: displayName, displayName, gradeNumber: '—', last_updated: null, note: null }
+  })
 
   return (
     <Card>
