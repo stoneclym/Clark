@@ -26,22 +26,19 @@ const QUICK_LINKS = [
 ]
 
 function openApp(deepLink, webUrl) {
-  // Try the native-app scheme without opening a popup window inside Clark.
-  // If iOS leaves the PWA for the native app, remember that and skip fallback.
+  // Try the native-app scheme from the current PWA window so iOS treats it
+  // like a user-initiated app handoff, not a blocked popup or hidden frame.
+  // If the app opens, Clark becomes hidden and we skip the web fallback.
   let openedNative = false
   const markOpenedNative = () => {
     if (document.visibilityState === 'hidden') openedNative = true
   }
   document.addEventListener('visibilitychange', markOpenedNative, { once: true })
 
-  const launcher = document.createElement('iframe')
-  launcher.style.display = 'none'
-  launcher.src = deepLink
-  document.body.appendChild(launcher)
+  window.location.href = deepLink
 
   setTimeout(() => {
     document.removeEventListener('visibilitychange', markOpenedNative)
-    launcher.remove()
 
     if (!openedNative && document.visibilityState === 'visible') {
       const fallbackWindow = window.open(webUrl, '_blank', 'noopener,noreferrer')
