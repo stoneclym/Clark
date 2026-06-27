@@ -26,13 +26,16 @@ const QUICK_LINKS = [
 ]
 
 function openApp(deepLink, webUrl) {
-  // Try the deep link; if the app isn't installed iOS will do nothing
-  // and we fall back to the web URL after a short delay
-  const start = Date.now()
-  window.location.href = deepLink
+  // Open quick links outside Clark so the PWA shell is never replaced.
+  // Try the native-app scheme first, then fall back to the web URL if
+  // Clark is still visible after the OS has had a chance to handle it.
+  const nativeWindow = window.open(deepLink, '_blank', 'noopener,noreferrer')
+  if (nativeWindow) nativeWindow.opener = null
+
   setTimeout(() => {
-    if (Date.now() - start < 2000) {
-      window.location.href = webUrl
+    if (document.visibilityState === 'visible') {
+      const fallbackWindow = window.open(webUrl, '_blank', 'noopener,noreferrer')
+      if (fallbackWindow) fallbackWindow.opener = null
     }
   }, 1200)
 }
