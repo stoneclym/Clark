@@ -268,26 +268,72 @@ function CalendarCard() {
 }
 
 // ─── Grades Card ─────────────────────────────────────────────────
+const FORMAL_GRADE_NAMES = {
+  'history of the americas': 'IB History of the Americas',
+  hota: 'IB History of the Americas',
+  'biology hl': 'IB Biology',
+  biology: 'IB Biology',
+  bio: 'IB Biology',
+  'theory of knowledge': 'IB Theory of Knowledge',
+  tok: 'IB Theory of Knowledge',
+  'ib english: lang and lit': 'IB Language and Literature',
+  'ib english lang lit': 'IB Language and Literature',
+  'ib language and literature': 'IB Language and Literature',
+  'language and literature': 'IB Language and Literature',
+  'math: analysis and approaches': 'IB Applications and Interpretations',
+  'math analysis and approaches': 'IB Applications and Interpretations',
+  'ib applications and interpretations': 'IB Applications and Interpretations',
+  'applications and interpretations': 'IB Applications and Interpretations',
+}
+
+const FORMAL_GRADE_ORDER = [
+  'IB History of the Americas',
+  'IB Biology',
+  'IB Theory of Knowledge',
+  'IB Language and Literature',
+  'IB Applications and Interpretations',
+]
+
+function normalizeClassName(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/\s+/g, ' ')
+}
+
+function gradeDisplayName(className) {
+  return FORMAL_GRADE_NAMES[normalizeClassName(className)] || null
+}
+
+function gradeNumber(percentage) {
+  const value = String(percentage || '').match(/\d+(?:\.\d+)?/)
+  return value ? value[0] : '—'
+}
+
 function GradesCard() {
   const { grades } = useGrades()
+  const formattedGrades = grades
+    .map(g => ({ ...g, displayName: gradeDisplayName(g.class_name), gradeNumber: gradeNumber(g.percentage) }))
+    .filter(g => g.displayName)
+    .sort((a, b) => FORMAL_GRADE_ORDER.indexOf(a.displayName) - FORMAL_GRADE_ORDER.indexOf(b.displayName))
 
   return (
     <Card>
       <div style={{ marginBottom: 6 }}><Label>Grades</Label></div>
-      {grades.map(g => (
+      {formattedGrades.map(g => (
         <div key={g.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '13px 0', borderTop: '1px solid var(--border)' }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, lineHeight: 1.25, color: 'var(--text)' }}>{g.class_name}</div>
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, lineHeight: 1.25, color: 'var(--text)' }}>{g.displayName}</div>
             <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 3 }}>
               {g.last_updated ? `Updated ${new Date(g.last_updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : 'No grade yet'}
             </div>
             {g.note && <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 3, fontStyle: 'italic' }}>"{g.note}"</div>}
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: g.is_placeholder ? 22 : 25, fontWeight: g.is_placeholder ? 500 : 600, color: g.is_placeholder ? 'var(--faint)' : 'var(--accentText)', lineHeight: 1 }}>
-              {g.score || '—'}
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 25, fontWeight: 600, color: '#568db3', lineHeight: 1 }}>
+              {g.gradeNumber}
             </div>
-            {g.percentage && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{g.percentage}</div>}
           </div>
         </div>
       ))}
