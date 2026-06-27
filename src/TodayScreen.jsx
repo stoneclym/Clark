@@ -253,9 +253,22 @@ function BrainDumpCard({ onParsed }) {
 }
 
 // ─── Tasks Card ─────────────────────────────────────────────────
+function isClubTask(task) {
+  const values = [task.category, task.tag, task.source].map(value => String(value || '').toLowerCase())
+  return values.some(value =>
+    value === 'club' ||
+    value === 'clubs' ||
+    value.includes('national honor society') ||
+    value.includes('nhs') ||
+    value.includes('beta club') ||
+    value.includes('spanish club') ||
+    value.includes('senior class')
+  )
+}
+
 function TasksCard({ tasks, toggleTask, filter, onFilter }) {
   const filtered = tasks.filter(t =>
-    filter === 'All' ? true : filter === 'Priority' ? t.priority : t.category === filter
+    filter === 'All' ? true : filter === 'Priority' ? t.priority : filter === 'Club' ? isClubTask(t) : t.category === filter
   )
 
   return (
