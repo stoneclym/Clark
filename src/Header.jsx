@@ -117,25 +117,45 @@ export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
       {/* Quick links panel */}
       {quickOpen && (
         <div style={{ display: 'flex', gap: 9, padding: '0 0 14px' }}>
-          {QUICK_LINKS.map(ql => (
-            <div
-              key={ql.id}
-              onClick={() => openApp(ql.deepLink, ql.webUrl)}
-              style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
-                background: 'var(--cardAlt)', border: '1px solid var(--border)',
-                borderRadius: 15, padding: '11px 6px', cursor: 'pointer',
-              }}
-            >
-              <div style={{
-                width: 38, height: 38, borderRadius: 12,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: "'Source Serif 4', Georgia, serif",
-                fontSize: 14, fontWeight: 600, color: '#fff', background: ql.tint, flexShrink: 0,
-              }}>{ql.glyph}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, textAlign: 'center', lineHeight: 1.2, color: 'var(--text)' }}>{ql.label}</div>
-            </div>
-          ))}
+          {QUICK_LINKS.map(ql => {
+            const cardStyle = {
+              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
+              background: 'var(--cardAlt)', border: '1px solid var(--border)',
+              borderRadius: 15, padding: '11px 6px', cursor: 'pointer',
+              textDecoration: 'none',
+            }
+            const cardContent = (
+              <>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 12,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: "'Source Serif 4', Georgia, serif",
+                  fontSize: 14, fontWeight: 600, color: '#fff', background: ql.tint, flexShrink: 0,
+                }}>{ql.glyph}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, textAlign: 'center', lineHeight: 1.2, color: 'var(--text)' }}>{ql.label}</div>
+              </>
+            )
+
+            return ql.deepLink ? (
+              <div
+                key={ql.id}
+                onClick={() => openApp(ql.deepLink, ql.webUrl)}
+                style={cardStyle}
+              >
+                {cardContent}
+              </div>
+            ) : (
+              <a
+                key={ql.id}
+                href={ql.webUrl}
+                target="_blank"
+                rel="noopener noreferrer external"
+                style={cardStyle}
+              >
+                {cardContent}
+              </a>
+            )
+          })}
         </div>
       )}
     </div>
