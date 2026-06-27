@@ -8,6 +8,59 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const FORMAL_GRADE_NAMES: Record<string, string> = {
+  'ib history of the americas': 'IB History of the Americas',
+  'history of the americas': 'IB History of the Americas',
+  hota: 'IB History of the Americas',
+  'ib biology': 'IB Biology',
+  'ib biology hl': 'IB Biology',
+  'biology hl': 'IB Biology',
+  biology: 'IB Biology',
+  bio: 'IB Biology',
+  'ib theory of knowledge': 'IB Theory of Knowledge',
+  'theory of knowledge': 'IB Theory of Knowledge',
+  tok: 'IB Theory of Knowledge',
+  'ib english: language and literature': 'IB Language and Literature',
+  'ib english: lang and lit': 'IB Language and Literature',
+  'ib english language and literature': 'IB Language and Literature',
+  'ib english lang lit': 'IB Language and Literature',
+  'ib language and lit': 'IB Language and Literature',
+  'ib language and literature': 'IB Language and Literature',
+  'language and lit': 'IB Language and Literature',
+  'language and literature': 'IB Language and Literature',
+  'ib math: applications and interpretations': 'IB Applications and Interpretations',
+  'ib math applications and interpretations': 'IB Applications and Interpretations',
+  'math: analysis and approaches': 'IB Applications and Interpretations',
+  'math analysis and approaches': 'IB Applications and Interpretations',
+  'ib applications and interpretations': 'IB Applications and Interpretations',
+  'applications and interpretations': 'IB Applications and Interpretations',
+}
+
+const FORMAL_GRADE_ORDER = [
+  'IB History of the Americas',
+  'IB Biology',
+  'IB Theory of Knowledge',
+  'IB Language and Literature',
+  'IB Applications and Interpretations',
+]
+
+function normalizeClassName(name: unknown) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/\s+/g, ' ')
+}
+
+function formalGradeName(name: unknown) {
+  return FORMAL_GRADE_NAMES[normalizeClassName(name)] || null
+}
+
+function gradePercentage(value: unknown) {
+  const match = String(value || '').match(/\d+(?:\.\d+)?/)
+  return match ? match[0] : null
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -20,9 +73,9 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Load actual class names so AI can match exactly
-  const { data: gradeRows } = await supabase.from('grades').select('class_name').order('class_order')
-  const classNames = gradeRows?.map((g: Record<string, unknown>) => g.class_name as string) ?? []
+  // Load actual grade rows, then give AI the formal display names Clark supports.
+  const { data: gradeRows } = await supabase.from('grades').select('id, class_name').order('class_order')
+  const classNames = FORMAL_GRADE_ORDER.join(' | ')
 
   const SYSTEM = `You are Clark's brain-dump parser. The user speaks or types freely and you extract every action item.
 
@@ -32,7 +85,7 @@ Return ONLY valid JSON with this shape:
     { "title": string, "category": "Class"|"Club"|"College", "tag": string, "due_date": string, "priority": boolean }
   ],
   "grades": [
-    { "class_name": string, "score": string, "percentage": string|null, "note": string|null }
+    { "class_name": string, "percentage": string, "note": string|null }
   ],
   "club_tasks": [
     { "club_name": string, "task_text": string }
@@ -42,7 +95,7 @@ Return ONLY valid JSON with this shape:
 Rules:
 - "due_date" can be natural language: "today", "next class", "Friday", "tomorrow at 4 PM"
 - priority must be a boolean true or false, never a string
-- For grades: score is IB 1-7 or letter grade. You MUST use the exact class_name from this list: ${classNames.join(' | ')}
+- For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
 - For club tasks: club_name must be one of: National Honor Society, Beta Club, Spanish Club, Senior Class
 - Only include keys with items; omit empty arrays
 - No markdown, no explanation — raw JSON only`
@@ -91,22 +144,33 @@ Rules:
     if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
   }
 
-  // Update grades — exact class_name match since AI now knows the exact names
+  // Update or create grade rows using Clark's formal class-name mapping.
   if (Array.isArray(parsed.grades) && parsed.grades.length) {
     for (const g of parsed.grades as Array<Record<string, unknown>>) {
-      const className = String(g.class_name || '').trim()
-      if (!className) continue
+      const requestedClassName = String(g.class_name || '').trim()
+      const className = formalGradeName(requestedClassName)
+      if (!className) {
+        dbErrors.push(`grades(${requestedClassName || 'unknown'}): class not recognized`)
+        continue
+      }
 
-      const { error: gradeError } = await supabase
-        .from('grades')
-        .update({
-          score: g.score ? String(g.score) : null,
-          percentage: g.percentage ? String(g.percentage) : null,
-          note: g.note ? String(g.note) : null,
-          last_updated: new Date().toISOString(),
-          is_placeholder: false,
-        })
-        .eq('class_name', className)
+      const existingGrade = gradeRows?.find((row: Record<string, unknown>) =>
+        formalGradeName(row.class_name) === className
+      )
+      const percentage = gradePercentage(g.percentage ?? g.score)
+      const payload = {
+        class_name: className,
+        score: null,
+        percentage,
+        note: g.note ? String(g.note) : null,
+        last_updated: new Date().toISOString(),
+        is_placeholder: false,
+        class_order: FORMAL_GRADE_ORDER.indexOf(className) + 1,
+      }
+
+      const { error: gradeError } = existingGrade
+        ? await supabase.from('grades').update(payload).eq('id', existingGrade.id)
+        : await supabase.from('grades').insert(payload)
 
       if (gradeError) dbErrors.push(`grades(${className}): ${gradeError.message}`)
     }
