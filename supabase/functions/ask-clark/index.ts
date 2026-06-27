@@ -44,6 +44,105 @@ function sentenceCaseTaskTitle(value: unknown) {
   return title
 }
 
+
+const WEEKDAYS: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+}
+
+const MONTH_NAME_PATTERN = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i
+
+function parseTime(value: string) {
+  const match = value.match(/\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  if (!match) return null
+
+  let hours = Number(match[1])
+  const minutes = Number(match[2] || 0)
+  const meridiem = match[3].toLowerCase()
+  if (meridiem === 'pm' && hours < 12) hours += 12
+  if (meridiem === 'am' && hours === 12) hours = 0
+  if (hours > 23 || minutes > 59) return null
+  return { hours, minutes }
+}
+
+function applyDeadlineTime(date: Date, time: { hours: number; minutes: number } | null) {
+  const copy = new Date(date)
+  const applied = time || { hours: 23, minutes: 59 }
+  copy.setHours(applied.hours, applied.minutes, 0, 0)
+  return copy
+}
+
+function nextWeekdayDate(dayName: string) {
+  const targetDay = WEEKDAYS[dayName]
+  if (targetDay == null) return null
+  const date = new Date()
+  const diff = (targetDay - date.getDay() + 7) % 7
+  date.setDate(date.getDate() + diff)
+  return date
+}
+
+function parseDeadlineDate(value: string) {
+  const text = value.trim()
+  const lower = text.toLowerCase()
+
+  const relative = lower.replace(/\s+at\s+.*$/i, '')
+  if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
+    const date = new Date()
+    if (relative === 'yesterday') date.setDate(date.getDate() - 1)
+    if (relative === 'tomorrow') date.setDate(date.getDate() + 1)
+    return date
+  }
+
+  const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
+  if (dateOnly) return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+
+  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(text)) {
+    const date = new Date(text)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:\b|\s)/)
+  if (slashDate) {
+    const year = Number(slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3])
+    return new Date(year, Number(slashDate[1]) - 1, Number(slashDate[2]))
+  }
+
+  if (MONTH_NAME_PATTERN.test(text) && /\d{1,2}/.test(text) && /\d{4}/.test(text)) {
+    const dateText = text.replace(/\s+at\s+.*$/i, '')
+    const date = new Date(dateText)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const weekday = Object.keys(WEEKDAYS).find(day => lower === day || lower.startsWith(`${day} at `))
+  return weekday ? nextWeekdayDate(weekday) : null
+}
+
+function normalizeTaskDeadline(value: unknown) {
+  const originalDueText = String(value || '').trim()
+  if (!originalDueText) {
+    return { due_date: null, due_date_calc: null, due_at: null, original_due_text: null }
+  }
+
+  const date = parseDeadlineDate(originalDueText)
+  if (!date) {
+    return { due_date: originalDueText, due_date_calc: null, due_at: null, original_due_text: originalDueText }
+  }
+
+  const dueAt = applyDeadlineTime(date, parseTime(originalDueText))
+  const dueDateCalc = dueAt.toISOString().slice(0, 10)
+  return {
+    due_date: dueDateCalc,
+    due_date_calc: dueDateCalc,
+    due_at: dueAt.toISOString(),
+    original_due_text: originalDueText,
+  }
+}
+
 const tools: Anthropic.Tool[] = [
   {
     name: 'create_task',
@@ -88,7 +187,7 @@ Deno.serve(async (req) => {
   )
 
   const [tasksRes, gradesRes, emailsRes, clubsRes, settingsRes] = await Promise.all([
-    supabase.from('tasks').select('id, title, category, tag, due_date, priority, done').eq('done', false).limit(30),
+    supabase.from('tasks').select('id, title, category, tag, due_date, due_at, priority, done').eq('done', false).limit(30),
     supabase.from('grades').select('class_name, score, percentage, note').order('class_order'),
     supabase.from('emails').select('from_name, subject, snippet, received_at').order('received_at', { ascending: false }).limit(5),
     supabase.from('clubs').select('name, role, next_meeting, club_tasks(task_text, done)').order('display_order'),
@@ -107,7 +206,7 @@ Deno.serve(async (req) => {
 Today is ${today}.
 
 PENDING TASKS (${tasks.length}):
-${tasks.map(t => `- [${t.id}] ${t.title} [${t.tag || t.category}] due ${t.due_date || 'no date'}${t.priority ? ' ★ priority' : ''}`).join('\n') || 'None'}
+${tasks.map(t => `- [${t.id}] ${t.title} [${t.tag || t.category}] due ${t.due_at || t.due_date || 'no date'}${t.priority ? ' ★ priority' : ''}`).join('\n') || 'None'}
 
 GRADES:
 ${grades.map(g => `- ${g.class_name}: ${g.score || '—'} (${g.percentage || '—'})${g.note ? ' — ' + g.note : ''}`).join('\n') || 'None'}
@@ -152,11 +251,12 @@ ${context}`
       if (block.name === 'create_task') {
         const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
         const title = sentenceCaseTaskTitle(input.title) || 'Untitled task'
+        const deadline = normalizeTaskDeadline(input.due_date)
         const { error } = await supabase.from('tasks').insert({
           title,
           category: (input.category as string) || 'Personal',
           tag: (input.tag as string) || null,
-          due_date: (input.due_date as string) || null,
+          ...deadline,
           priority: (input.priority as boolean) || false,
           priority_rank: input.priority ? (count || 0) + 1 : null,
           source: 'Ask Clark',

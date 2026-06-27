@@ -44,6 +44,105 @@ function sentenceCaseTaskTitle(value: unknown) {
   return title
 }
 
+
+const WEEKDAYS: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+}
+
+const MONTH_NAME_PATTERN = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i
+
+function parseTime(value: string) {
+  const match = value.match(/\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  if (!match) return null
+
+  let hours = Number(match[1])
+  const minutes = Number(match[2] || 0)
+  const meridiem = match[3].toLowerCase()
+  if (meridiem === 'pm' && hours < 12) hours += 12
+  if (meridiem === 'am' && hours === 12) hours = 0
+  if (hours > 23 || minutes > 59) return null
+  return { hours, minutes }
+}
+
+function applyDeadlineTime(date: Date, time: { hours: number; minutes: number } | null) {
+  const copy = new Date(date)
+  const applied = time || { hours: 23, minutes: 59 }
+  copy.setHours(applied.hours, applied.minutes, 0, 0)
+  return copy
+}
+
+function nextWeekdayDate(dayName: string) {
+  const targetDay = WEEKDAYS[dayName]
+  if (targetDay == null) return null
+  const date = new Date()
+  const diff = (targetDay - date.getDay() + 7) % 7
+  date.setDate(date.getDate() + diff)
+  return date
+}
+
+function parseDeadlineDate(value: string) {
+  const text = value.trim()
+  const lower = text.toLowerCase()
+
+  const relative = lower.replace(/\s+at\s+.*$/i, '')
+  if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
+    const date = new Date()
+    if (relative === 'yesterday') date.setDate(date.getDate() - 1)
+    if (relative === 'tomorrow') date.setDate(date.getDate() + 1)
+    return date
+  }
+
+  const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
+  if (dateOnly) return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+
+  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(text)) {
+    const date = new Date(text)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:\b|\s)/)
+  if (slashDate) {
+    const year = Number(slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3])
+    return new Date(year, Number(slashDate[1]) - 1, Number(slashDate[2]))
+  }
+
+  if (MONTH_NAME_PATTERN.test(text) && /\d{1,2}/.test(text) && /\d{4}/.test(text)) {
+    const dateText = text.replace(/\s+at\s+.*$/i, '')
+    const date = new Date(dateText)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+
+  const weekday = Object.keys(WEEKDAYS).find(day => lower === day || lower.startsWith(`${day} at `))
+  return weekday ? nextWeekdayDate(weekday) : null
+}
+
+function normalizeTaskDeadline(value: unknown) {
+  const originalDueText = String(value || '').trim()
+  if (!originalDueText) {
+    return { due_date: null, due_date_calc: null, due_at: null, original_due_text: null }
+  }
+
+  const date = parseDeadlineDate(originalDueText)
+  if (!date) {
+    return { due_date: originalDueText, due_date_calc: null, due_at: null, original_due_text: originalDueText }
+  }
+
+  const dueAt = applyDeadlineTime(date, parseTime(originalDueText))
+  const dueDateCalc = dueAt.toISOString().slice(0, 10)
+  return {
+    due_date: dueDateCalc,
+    due_date_calc: dueDateCalc,
+    due_at: dueAt.toISOString(),
+    original_due_text: originalDueText,
+  }
+}
+
 const FORMAL_GRADE_NAMES: Record<string, string> = {
   'ib history of the americas': 'IB History of the Americas',
   'history of the americas': 'IB History of the Americas',
@@ -95,18 +194,6 @@ function formalGradeName(name: unknown) {
 function gradePercentage(value: unknown) {
   const match = String(value || '').match(/\d+(?:\.\d+)?/)
   return match ? match[0] : null
-}
-
-function normalizedRelativeDate(value: unknown) {
-  const text = String(value || '').trim().toLowerCase()
-  if (!['yesterday', 'today', 'tomorrow'].includes(text)) {
-    return value ? String(value) : null
-  }
-
-  const date = new Date()
-  if (text === 'yesterday') date.setDate(date.getDate() - 1)
-  if (text === 'tomorrow') date.setDate(date.getDate() + 1)
-  return date.toISOString().slice(0, 10)
 }
 
 function taskTag(value: unknown) {
@@ -186,15 +273,18 @@ Rules:
     const baseRank = (count || 0) + 1
 
     const { error: taskError } = await supabase.from('tasks').insert(
-      (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => ({
-        title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
-        category: String(t.category || 'Class'),
-        tag: taskTag(t.tag),
-        due_date: normalizedRelativeDate(t.due_date),
-        priority: t.priority === true,
-        priority_rank: t.priority === true ? baseRank + i : null,
-        source: 'Brain Dump',
-      }))
+      (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => {
+        const deadline = normalizeTaskDeadline(t.due_date)
+        return {
+          title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
+          category: String(t.category || 'Class'),
+          tag: taskTag(t.tag),
+          ...deadline,
+          priority: t.priority === true,
+          priority_rank: t.priority === true ? baseRank + i : null,
+          source: 'Brain Dump',
+        }
+      })
     )
     if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
   }

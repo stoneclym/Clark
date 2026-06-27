@@ -7,13 +7,37 @@ export function startOfLocalDay(date) {
 }
 
 function parseDateOnly(value) {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
   if (!match) return null
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
 }
 
+function parseTime(value) {
+  const match = value.match(/\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
+  if (!match) return null
+
+  let hours = Number(match[1])
+  const minutes = Number(match[2] || 0)
+  const meridiem = match[3].toLowerCase()
+
+  if (meridiem === 'pm' && hours < 12) hours += 12
+  if (meridiem === 'am' && hours === 12) hours = 0
+  if (hours > 23 || minutes > 59) return null
+
+  return { hours, minutes }
+}
+
+function applyTime(date, time) {
+  const copy = new Date(date)
+  if (time) {
+    copy.setHours(time.hours, time.minutes, 0, 0)
+    return { date: copy, hasTime: true }
+  }
+  return { date: copy, hasTime: false }
+}
+
 function parseSlashDate(value) {
-  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/)
+  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:\b|\s)/)
   if (!match) return null
   const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3])
   return new Date(year, Number(match[1]) - 1, Number(match[2]))
@@ -21,7 +45,8 @@ function parseSlashDate(value) {
 
 function parseMonthNameDate(value) {
   if (!MONTH_NAME_PATTERN.test(value) || !/\d{1,2}/.test(value) || !/\d{4}/.test(value)) return null
-  const date = new Date(value)
+  const dateText = value.replace(/\s+at\s+.*$/i, '')
+  const date = new Date(dateText)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
@@ -31,16 +56,17 @@ export function parseTaskDateValue(value) {
   const text = value.trim()
   if (!text) return null
 
+  const time = parseTime(text)
   const relative = text.toLowerCase()
-  if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
+  if (['yesterday', 'today', 'tomorrow'].includes(relative.replace(/\s+at\s+.*$/i, ''))) {
     const date = startOfLocalDay(new Date())
-    if (relative === 'yesterday') date.setDate(date.getDate() - 1)
-    if (relative === 'tomorrow') date.setDate(date.getDate() + 1)
-    return { date, hasTime: false }
+    if (relative.startsWith('yesterday')) date.setDate(date.getDate() - 1)
+    if (relative.startsWith('tomorrow')) date.setDate(date.getDate() + 1)
+    return applyTime(date, time)
   }
 
   const dateOnly = parseDateOnly(text)
-  if (dateOnly) return { date: dateOnly, hasTime: false }
+  if (dateOnly) return applyTime(dateOnly, time)
 
   if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(text)) {
     const date = new Date(text)
@@ -48,16 +74,23 @@ export function parseTaskDateValue(value) {
   }
 
   const slashDate = parseSlashDate(text)
-  if (slashDate) return { date: slashDate, hasTime: false }
+  if (slashDate) return applyTime(slashDate, time)
 
   const monthNameDate = parseMonthNameDate(text)
-  if (monthNameDate) return { date: monthNameDate, hasTime: /\d{1,2}:\d{2}/.test(text) }
+  if (monthNameDate) return applyTime(monthNameDate, time)
 
   return null
 }
 
+function formatTime(date) {
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
 export function getTaskDateInfo(task) {
-  const stored = parseTaskDateValue(task?.due_date_calc) || parseTaskDateValue(task?.due_date)
+  const stored = parseTaskDateValue(task?.due_at) || parseTaskDateValue(task?.due_date_calc) || parseTaskDateValue(task?.due_date)
   if (!stored) return { label: task?.due_date || '', isPast: false, hasRealDate: false, date: null }
 
   const today = startOfLocalDay(new Date())
@@ -65,15 +98,17 @@ export function getTaskDateInfo(task) {
   const dayDiff = Math.round((taskDay - today) / 86_400_000)
   const isPast = stored.hasTime ? stored.date < new Date() : dayDiff < 0
 
-  if (dayDiff === 0) return { label: 'Today', isPast, hasRealDate: true, date: stored.date }
-  if (dayDiff === 1) return { label: 'Tomorrow', isPast: false, hasRealDate: true, date: stored.date }
+  if (dayDiff === 0) return { label: stored.hasTime ? `Today, ${formatTime(stored.date)}` : 'Today', isPast, hasRealDate: true, date: stored.date }
+  if (dayDiff === 1) return { label: stored.hasTime ? `Tomorrow, ${formatTime(stored.date)}` : 'Tomorrow', isPast: false, hasRealDate: true, date: stored.date }
+
+  const dateLabel = stored.date.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: '2-digit',
+  })
 
   return {
-    label: stored.date.toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: '2-digit',
-    }),
+    label: stored.hasTime ? `${dateLabel}, ${formatTime(stored.date)}` : dateLabel,
     isPast,
     hasRealDate: true,
     date: stored.date,
