@@ -6,6 +6,7 @@ import { useSchedule } from './hooks/useSchedule.js'
 import { useBriefing } from './hooks/useBriefing.js'
 import { supabase } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
+import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 
 // ─── Calendar config ───────────────────────────────────────────
 const CAL_TODAY = new Date().getDate()
@@ -42,61 +43,6 @@ function CheckBox({ done, small = false }) {
   ) : (
     <div style={{ flexShrink: 0, width: size, height: size, borderRadius: 6, border: '1.6px solid var(--borderStrong)', marginTop: small ? 0 : 1 }}/>
   )
-}
-
-const OVERDUE_COLOR = '#C0392B'
-
-
-
-function startOfLocalDay(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
-
-function parseStoredTaskDate(value) {
-  if (!value || typeof value !== 'string') return null
-
-  const relative = value.trim().toLowerCase()
-  if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
-    const date = startOfLocalDay(new Date())
-    if (relative === 'yesterday') date.setDate(date.getDate() - 1)
-    if (relative === 'tomorrow') date.setDate(date.getDate() + 1)
-    return { date, hasTime: false }
-  }
-
-  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (dateOnly) {
-    return {
-      date: new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])),
-      hasTime: false,
-    }
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}[T\s]/.test(value)) return null
-
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : { date, hasTime: true }
-}
-
-function formatStoredTaskDate(task) {
-  const stored = parseStoredTaskDate(task.due_date_calc || task.due_date)
-  if (!stored) return { label: task.due_date || '', isPast: false }
-
-  const today = startOfLocalDay(new Date())
-  const taskDay = startOfLocalDay(stored.date)
-  const dayDiff = Math.round((taskDay - today) / 86_400_000)
-  const isPast = stored.hasTime ? stored.date < new Date() : dayDiff < 0
-
-  if (dayDiff === 0) return { label: 'Today', isPast }
-  if (dayDiff === 1) return { label: 'Tomorrow', isPast: false }
-
-  return {
-    label: stored.date.toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: '2-digit',
-    }),
-    isPast,
-  }
 }
 
 function displayTaskTag(tag) {
@@ -164,7 +110,7 @@ function DashboardCard({ priorities, toggleTask }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {priorities.map(item => {
-              const dateInfo = formatStoredTaskDate(item)
+              const dateInfo = getTaskDateInfo(item)
               return (
                 <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
                   <CheckBox done={item.done} />
@@ -286,7 +232,7 @@ function TasksCard({ tasks, toggleTask, filter, onFilter }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
         {filtered.map(item => {
-          const dateInfo = formatStoredTaskDate(item)
+          const dateInfo = getTaskDateInfo(item)
           const tagLabel = displayTaskTag(item.tag)
           return (
             <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
