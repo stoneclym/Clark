@@ -8,6 +8,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const TASK_TITLE_WORDS: Record<string, string> = {
+  ib: 'IB',
+  nhs: 'NHS',
+  tok: 'TOK',
+  hota: 'HOTA',
+  ap: 'AP',
+  gpa: 'GPA',
+  ia: 'IA',
+  ee: 'EE',
+  cas: 'CAS',
+  sat: 'SAT',
+  act: 'ACT',
+  ncsis: 'NCSIS',
+  bio: 'Bio',
+  math: 'Math',
+  canvas: 'Canvas',
+  instagram: 'Instagram',
+}
+
+function sentenceCaseTaskTitle(value: unknown) {
+  const raw = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!raw) return ''
+
+  const shouldNormalizeCase = raw === raw.toLowerCase() || raw === raw.toUpperCase()
+  let title = shouldNormalizeCase ? raw.toLowerCase() : raw
+
+  title = title.replace(/[A-Za-z]/, letter => letter.toUpperCase())
+  title = title.replace(/([.!?]\s+)([a-z])/g, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`)
+
+  Object.entries(TASK_TITLE_WORDS).forEach(([word, replacement]) => {
+    title = title.replace(new RegExp(`\\b${word}\\b`, 'gi'), replacement)
+  })
+
+  return title
+}
+
 const FORMAL_GRADE_NAMES: Record<string, string> = {
   'ib history of the americas': 'IB History of the Americas',
   'history of the americas': 'IB History of the Americas',
@@ -151,7 +187,7 @@ Rules:
 
     const { error: taskError } = await supabase.from('tasks').insert(
       (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => ({
-        title: String(t.title || '').trim() || 'Untitled task',
+        title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
         category: String(t.category || 'Class'),
         tag: taskTag(t.tag),
         due_date: normalizedRelativeDate(t.due_date),

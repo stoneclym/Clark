@@ -8,6 +8,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const TASK_TITLE_WORDS: Record<string, string> = {
+  ib: 'IB',
+  nhs: 'NHS',
+  tok: 'TOK',
+  hota: 'HOTA',
+  ap: 'AP',
+  gpa: 'GPA',
+  ia: 'IA',
+  ee: 'EE',
+  cas: 'CAS',
+  sat: 'SAT',
+  act: 'ACT',
+  ncsis: 'NCSIS',
+  bio: 'Bio',
+  math: 'Math',
+  canvas: 'Canvas',
+  instagram: 'Instagram',
+}
+
+function sentenceCaseTaskTitle(value: unknown) {
+  const raw = String(value || '').trim().replace(/\s+/g, ' ')
+  if (!raw) return ''
+
+  const shouldNormalizeCase = raw === raw.toLowerCase() || raw === raw.toUpperCase()
+  let title = shouldNormalizeCase ? raw.toLowerCase() : raw
+
+  title = title.replace(/[A-Za-z]/, letter => letter.toUpperCase())
+  title = title.replace(/([.!?]\s+)([a-z])/g, (_, prefix, letter) => `${prefix}${letter.toUpperCase()}`)
+
+  Object.entries(TASK_TITLE_WORDS).forEach(([word, replacement]) => {
+    title = title.replace(new RegExp(`\\b${word}\\b`, 'gi'), replacement)
+  })
+
+  return title
+}
+
 const tools: Anthropic.Tool[] = [
   {
     name: 'create_task',
@@ -115,8 +151,9 @@ ${context}`
 
       if (block.name === 'create_task') {
         const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
+        const title = sentenceCaseTaskTitle(input.title) || 'Untitled task'
         const { error } = await supabase.from('tasks').insert({
-          title: input.title as string,
+          title,
           category: (input.category as string) || 'Personal',
           tag: (input.tag as string) || null,
           due_date: (input.due_date as string) || null,
@@ -124,7 +161,7 @@ ${context}`
           priority_rank: input.priority ? (count || 0) + 1 : null,
           source: 'Ask Clark',
         })
-        result = error ? `Error creating task: ${error.message}` : `Task "${input.title}" added successfully.`
+        result = error ? `Error creating task: ${error.message}` : `Task "${title}" added successfully.`
       }
 
       if (block.name === 'mark_task_done') {

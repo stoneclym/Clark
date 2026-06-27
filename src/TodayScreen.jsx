@@ -5,6 +5,7 @@ import { useEmails } from './hooks/useEmails.js'
 import { useSchedule } from './hooks/useSchedule.js'
 import { useBriefing } from './hooks/useBriefing.js'
 import { supabase } from './lib/supabase.js'
+import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 
 // ─── Calendar config ───────────────────────────────────────────
 const CAL_TODAY = new Date().getDate()
@@ -44,6 +45,8 @@ function CheckBox({ done, small = false }) {
 }
 
 const OVERDUE_COLOR = '#C0392B'
+
+
 
 function startOfLocalDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate())
@@ -166,7 +169,7 @@ function DashboardCard({ priorities, toggleTask }) {
                 <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
                   <CheckBox done={item.done} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                       <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)' }}>{dateInfo.label}</span>
                       <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>{item.source}</span>
@@ -275,7 +278,7 @@ function TasksCard({ tasks, toggleTask, filter, onFilter }) {
           return (
             <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
               <CheckBox done={item.done} small />
-              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
               {tagLabel && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{tagLabel}</span>}
               <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{dateInfo.label}</span>
             </div>

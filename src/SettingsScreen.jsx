@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase.js'
+import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 
 const MICROSOFT_CLIENT_ID = 'c92f4bf4-9da6-4d38-b49d-715a2bee4beb'
 const OUTLOOK_SCOPES = [
@@ -213,7 +214,7 @@ export default function SettingsScreen({ dark, onBack }) {
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, color: 'var(--muted)', textDecoration: 'line-through', lineHeight: 1.3 }}>
-                      {task.title}
+                      {sentenceCaseTaskTitle(task.title)}
                     </div>
                     {task.due_date && (
                       <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 2 }}>{task.due_date}</div>
