@@ -20,7 +20,7 @@ const QUICK_LINKS = [
     label: 'Infinite Campus',
     glyph: 'IC',
     tint: '#3E8E5A',
-    deepLink: null,
+    deepLink: 'shortcuts://run-shortcut?name=Open%20Campus%20Student',
     webUrl: 'https://650.ncsis.gov/campus/portal/students/psu650nhcs.jsp',
   },
 ]
