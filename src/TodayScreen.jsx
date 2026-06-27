@@ -43,6 +43,51 @@ function CheckBox({ done, small = false }) {
   )
 }
 
+const OVERDUE_COLOR = '#C0392B'
+
+function startOfLocalDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function parseStoredTaskDate(value) {
+  if (!value || typeof value !== 'string') return null
+
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (dateOnly) {
+    return {
+      date: new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])),
+      hasTime: false,
+    }
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}[T\s]/.test(value)) return null
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : { date, hasTime: true }
+}
+
+function formatStoredTaskDate(task) {
+  const stored = parseStoredTaskDate(task.due_date_calc || task.due_date)
+  if (!stored) return { label: task.due_date || '', isPast: false }
+
+  const today = startOfLocalDay(new Date())
+  const taskDay = startOfLocalDay(stored.date)
+  const dayDiff = Math.round((taskDay - today) / 86_400_000)
+  const isPast = stored.hasTime ? stored.date < new Date() : dayDiff < 0
+
+  if (dayDiff === 0) return { label: 'Today', isPast }
+  if (dayDiff === 1) return { label: 'Tomorrow', isPast: false }
+
+  return {
+    label: stored.date.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: '2-digit',
+    }),
+    isPast,
+  }
+}
+
 // ─── Dashboard Card ─────────────────────────────────────────────
 function DashboardCard({ priorities, toggleTask }) {
   const { dayType, currentPeriod, dateLabel } = useSchedule()
@@ -101,18 +146,21 @@ function DashboardCard({ priorities, toggleTask }) {
             <div style={{ fontSize: 11, color: 'var(--faint)' }}>Reordered by Clark</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {priorities.map(item => (
-              <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
-                <CheckBox done={item.done} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                    <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>{item.due_date}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>{item.source}</span>
+            {priorities.map(item => {
+              const dateInfo = formatStoredTaskDate(item)
+              return (
+                <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
+                  <CheckBox done={item.done} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                      <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)' }}>{dateInfo.label}</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>{item.source}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
@@ -207,14 +255,17 @@ function TasksCard({ tasks, toggleTask, filter, onFilter }) {
         ))}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-        {filtered.map(item => (
-          <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
-            <CheckBox done={item.done} small />
-            <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
-            <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{item.tag}</span>
-            <span style={{ fontSize: 11.5, color: 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{item.due_date}</span>
-          </div>
-        ))}
+        {filtered.map(item => {
+          const dateInfo = formatStoredTaskDate(item)
+          return (
+            <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+              <CheckBox done={item.done} small />
+              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
+              <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{item.tag}</span>
+              <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{dateInfo.label}</span>
+            </div>
+          )
+        })}
       </div>
     </Card>
   )
