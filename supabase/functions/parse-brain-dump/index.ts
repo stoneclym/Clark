@@ -61,6 +61,24 @@ function gradePercentage(value: unknown) {
   return match ? match[0] : null
 }
 
+function normalizedRelativeDate(value: unknown) {
+  const text = String(value || '').trim().toLowerCase()
+  if (!['yesterday', 'today', 'tomorrow'].includes(text)) {
+    return value ? String(value) : null
+  }
+
+  const date = new Date()
+  if (text === 'yesterday') date.setDate(date.getDate() - 1)
+  if (text === 'tomorrow') date.setDate(date.getDate() + 1)
+  return date.toISOString().slice(0, 10)
+}
+
+function taskTag(value: unknown) {
+  const tag = String(value || '').trim()
+  if (!tag) return null
+  return /^(overdue|late|past due|past-due|yesterday|today|tomorrow)$/i.test(tag) ? null : tag
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -95,6 +113,7 @@ Return ONLY valid JSON with this shape:
 Rules:
 - "due_date" can be natural language: "today", "next class", "Friday", "tomorrow at 4 PM"
 - priority must be a boolean true or false, never a string
+- Do not use status words like "overdue", "late", "today", "tomorrow", or "yesterday" as task tags. Tags are only for a class, club, or category.
 - For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
 - For club tasks: club_name must be one of: National Honor Society, Beta Club, Spanish Club, Senior Class
 - Only include keys with items; omit empty arrays
@@ -134,8 +153,8 @@ Rules:
       (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => ({
         title: String(t.title || '').trim() || 'Untitled task',
         category: String(t.category || 'Class'),
-        tag: t.tag ? String(t.tag) : null,
-        due_date: t.due_date ? String(t.due_date) : null,
+        tag: taskTag(t.tag),
+        due_date: normalizedRelativeDate(t.due_date),
         priority: t.priority === true,
         priority_rank: t.priority === true ? baseRank + i : null,
         source: 'Brain Dump',

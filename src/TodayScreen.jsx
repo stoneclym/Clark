@@ -52,6 +52,14 @@ function startOfLocalDay(date) {
 function parseStoredTaskDate(value) {
   if (!value || typeof value !== 'string') return null
 
+  const relative = value.trim().toLowerCase()
+  if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
+    const date = startOfLocalDay(new Date())
+    if (relative === 'yesterday') date.setDate(date.getDate() - 1)
+    if (relative === 'tomorrow') date.setDate(date.getDate() + 1)
+    return { date, hasTime: false }
+  }
+
   const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (dateOnly) {
     return {
@@ -86,6 +94,12 @@ function formatStoredTaskDate(task) {
     }),
     isPast,
   }
+}
+
+function displayTaskTag(tag) {
+  const value = String(tag || '').trim()
+  if (!value) return ''
+  return /^(overdue|late|past due|past-due|yesterday|today|tomorrow)$/i.test(value) ? '' : value
 }
 
 // ─── Dashboard Card ─────────────────────────────────────────────
@@ -257,11 +271,12 @@ function TasksCard({ tasks, toggleTask, filter, onFilter }) {
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
         {filtered.map(item => {
           const dateInfo = formatStoredTaskDate(item)
+          const tagLabel = displayTaskTag(item.tag)
           return (
             <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
               <CheckBox done={item.done} small />
               <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{item.title}</div>
-              <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{item.tag}</span>
+              {tagLabel && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{tagLabel}</span>}
               <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{dateInfo.label}</span>
             </div>
           )
