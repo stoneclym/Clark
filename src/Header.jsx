@@ -20,12 +20,22 @@ const QUICK_LINKS = [
     label: 'Infinite Campus',
     glyph: 'IC',
     tint: '#3E8E5A',
-    deepLink: 'infinitecampus://',
-    webUrl: 'https://newhanover.infinitecampus.org/campus/portal/newHanover.jsp',
+    deepLink: null,
+    webUrl: 'https://650.ncsis.gov/campus/portal/students/psu650nhcs.jsp',
   },
 ]
 
+function openExternal(url) {
+  const externalWindow = window.open(url, '_blank', 'noopener,noreferrer')
+  if (externalWindow) externalWindow.opener = null
+}
+
 function openApp(deepLink, webUrl) {
+  if (!deepLink) {
+    openExternal(webUrl)
+    return
+  }
+
   // Try the native-app scheme from the current PWA window so iOS treats it
   // like a user-initiated app handoff, not a blocked popup or hidden frame.
   // If the app opens, Clark becomes hidden and we skip the web fallback.
@@ -41,8 +51,7 @@ function openApp(deepLink, webUrl) {
     document.removeEventListener('visibilitychange', markOpenedNative)
 
     if (!openedNative && document.visibilityState === 'visible') {
-      const fallbackWindow = window.open(webUrl, '_blank', 'noopener,noreferrer')
-      if (fallbackWindow) fallbackWindow.opener = null
+      openExternal(webUrl)
     }
   }, 1600)
 }
