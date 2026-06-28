@@ -7,6 +7,7 @@ import { useBriefing } from './hooks/useBriefing.js'
 import { supabase } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
+import { normalizeClassLabel } from './lib/classNames.js'
 
 // ─── Calendar config ───────────────────────────────────────────
 const CAL_TODAY = new Date().getDate()
@@ -47,8 +48,8 @@ function CheckBox({ done, small = false }) {
 
 function displayTaskTag(tag) {
   const value = String(tag || '').trim()
-  if (!value) return ''
-  return /^(overdue|late|past due|past-due|yesterday|today|tomorrow)$/i.test(value) ? '' : value
+  if (!value || /^(overdue|late|past due|past-due|yesterday|today|tomorrow)$/i.test(value)) return ''
+  return normalizeClassLabel(value) || ''
 }
 
 // ─── Dashboard Card ─────────────────────────────────────────────

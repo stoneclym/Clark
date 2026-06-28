@@ -45,6 +45,48 @@ function sentenceCaseTaskTitle(value: unknown) {
 }
 
 
+
+const TASK_CLASS_TAGS: Record<string, string> = {
+  hota: 'HOTA',
+  history: 'HOTA',
+  'history of the americas': 'HOTA',
+  'ib history of the americas': 'HOTA',
+  bio: 'Bio',
+  biology: 'Bio',
+  'ib biology': 'Bio',
+  'ib biology hl': 'Bio',
+  'biology hl': 'Bio',
+  lang: 'Lang',
+  english: 'Lang',
+  'language and literature': 'Lang',
+  'ib language and literature': 'Lang',
+  'ib english language and literature': 'Lang',
+  'ib english lang lit': 'Lang',
+  'ib english lang and lit': 'Lang',
+  'ib language and lit': 'Lang',
+  'language and lit': 'Lang',
+  math: 'Math',
+  'applications and interpretations': 'Math',
+  'ib applications and interpretations': 'Math',
+  'ib math applications and interpretations': 'Math',
+  'math applications and interpretations': 'Math',
+  'math analysis and approaches': 'Math',
+  tok: 'TOK',
+  'theory of knowledge': 'TOK',
+  'ib theory of knowledge': 'TOK',
+}
+
+function normalizeClassLabel(value: unknown) {
+  const normalized = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[-_:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+
+  return TASK_CLASS_TAGS[normalized] || null
+}
+
 const WEEKDAYS: Record<string, number> = {
   sunday: 0,
   monday: 1,
@@ -255,7 +297,7 @@ ${context}`
         const { error } = await supabase.from('tasks').insert({
           title,
           category: (input.category as string) || 'Personal',
-          tag: (input.tag as string) || null,
+          tag: normalizeClassLabel(input.tag),
           ...deadline,
           priority: (input.priority as boolean) || false,
           priority_rank: input.priority ? (count || 0) + 1 : null,
