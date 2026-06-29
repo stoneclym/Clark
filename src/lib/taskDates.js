@@ -12,6 +12,10 @@ function parseDateOnly(value) {
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
 }
 
+export function hasExplicitTime(value) {
+  return /\b(?:at\s*)?\d{1,2}(?::\d{2})?\s*(am|pm)\b/i.test(String(value || ''))
+}
+
 function parseTime(value) {
   const match = value.match(/\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
   if (!match) return null
@@ -37,12 +41,13 @@ function applyTime(date, time) {
 }
 
 function parseSlashDate(value) {
-  const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:\b|\s)/)
+  const match = value.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?(?:\b|\s)/)
   if (!match) return null
-  const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3])
+  const year = match[3]
+    ? Number(match[3].length === 2 ? `20${match[3]}` : match[3])
+    : new Date().getFullYear()
   return new Date(year, Number(match[1]) - 1, Number(match[2]))
 }
-
 function parseMonthNameDate(value) {
   if (!MONTH_NAME_PATTERN.test(value) || !/\d{1,2}/.test(value) || !/\d{4}/.test(value)) return null
   const dateText = value.replace(/\s+at\s+.*$/i, '')
@@ -92,6 +97,10 @@ function formatTime(date) {
 export function getTaskDateInfo(task) {
   const stored = parseTaskDateValue(task?.due_at) || parseTaskDateValue(task?.due_date_calc) || parseTaskDateValue(task?.due_date)
   if (!stored) return { label: task?.due_date || '', isPast: false, hasRealDate: false, date: null }
+
+  if (task?.due_at && !hasExplicitTime(task.original_due_text || task.due_date)) {
+    stored.hasTime = false
+  }
 
   const today = startOfLocalDay(new Date())
   const taskDay = startOfLocalDay(stored.date)

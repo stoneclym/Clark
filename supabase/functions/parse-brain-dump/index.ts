@@ -8,6 +8,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+
+const TASK_TITLE_CLASS_PHRASES = [
+  'IB History of the Americas',
+  'History of the Americas',
+  'IB Applications and Interpretations',
+  'Applications and Interpretations',
+  'IB Language and Literature',
+  'Language and Literature',
+  'IB Theory of Knowledge',
+  'Theory of Knowledge',
+  'IB Biology',
+  'Biology',
+  'History',
+  'English',
+  'Math',
+  'HOTA',
+  'Bio',
+  'Lang',
+  'TOK',
+]
+
+function stripClassPhrases(value: string) {
+  let title = value
+  TASK_TITLE_CLASS_PHRASES.forEach(phrase => {
+    const pattern = phrase.replace(/\s+/g, '\\s+')
+    title = title.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ')
+  })
+  return title.replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim()
+}
 const TASK_TITLE_WORDS: Record<string, string> = {
   ib: 'IB',
   nhs: 'NHS',
@@ -41,10 +70,9 @@ function sentenceCaseTaskTitle(value: unknown) {
     title = title.replace(new RegExp(`\\b${word}\\b`, 'gi'), replacement)
   })
 
-  return title
+  const cleaned = stripClassPhrases(title) || title
+  return cleaned.replace(/[A-Za-z]/, letter => letter.toUpperCase())
 }
-
-
 
 const TASK_CLASS_TAGS: Record<string, string> = {
   hota: 'HOTA',
@@ -148,9 +176,11 @@ function parseDeadlineDate(value: string) {
     return Number.isNaN(date.getTime()) ? null : date
   }
 
-  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})(?:\b|\s)/)
+  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?(?:\b|\s)/)
   if (slashDate) {
-    const year = Number(slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3])
+    const year = slashDate[3]
+      ? Number(slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3])
+      : new Date().getFullYear()
     return new Date(year, Number(slashDate[1]) - 1, Number(slashDate[2]))
   }
 
