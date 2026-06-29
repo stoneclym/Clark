@@ -1,37 +1,56 @@
 export const OVERDUE_COLOR = '#C0392B'
 
-const CLARK_TIME_ZONE = 'Etc/GMT+7'
-const CLARK_OFFSET_MINUTES = -7 * 60
-const CLARK_OFFSET_MS = CLARK_OFFSET_MINUTES * 60_000
+const CLARK_TIME_ZONE = 'America/New_York'
 const DAY_MS = 86_400_000
+const CLARK_DATE_PARTS = new Intl.DateTimeFormat('en-US', {
+  timeZone: CLARK_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
+
+function clarkParts(date) {
+  return CLARK_DATE_PARTS.formatToParts(date).reduce((parts, part) => {
+    if (part.type !== 'literal') parts[part.type] = Number(part.value)
+    return parts
+  }, {})
+}
+
+function clarkOffsetMs(date) {
+  const parts = clarkParts(date)
+  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour % 24, parts.minute, parts.second, 0)
+  return asUtc - date.getTime()
+}
 const MONTH_NAME_PATTERN = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i
 
 export function startOfLocalDay(date) {
   return dateFromClarkParts(clarkYear(date), clarkMonth(date), clarkDay(date))
 }
 
-function clarkShiftedDate(date) {
-  return new Date(date.getTime() + CLARK_OFFSET_MS)
-}
-
 function clarkYear(date) {
-  return clarkShiftedDate(date).getUTCFullYear()
+  return clarkParts(date).year
 }
 
 function clarkMonth(date) {
-  return clarkShiftedDate(date).getUTCMonth()
+  return clarkParts(date).month - 1
 }
 
 function clarkDay(date) {
-  return clarkShiftedDate(date).getUTCDate()
+  return clarkParts(date).day
 }
 
 function clarkDayNumber(date) {
-  return Math.floor((date.getTime() + CLARK_OFFSET_MS) / DAY_MS)
+  return Math.floor(Date.UTC(clarkYear(date), clarkMonth(date), clarkDay(date)) / DAY_MS)
 }
 
 function dateFromClarkParts(year, monthIndex, day, hours = 0, minutes = 0) {
-  return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0, 0) - CLARK_OFFSET_MS)
+  const utcGuess = Date.UTC(year, monthIndex, day, hours, minutes, 0, 0)
+  const firstPass = new Date(utcGuess - clarkOffsetMs(new Date(utcGuess)))
+  return new Date(utcGuess - clarkOffsetMs(firstPass))
 }
 
 function parseDateOnly(value) {
