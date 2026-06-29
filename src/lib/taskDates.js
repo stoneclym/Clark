@@ -121,6 +121,12 @@ export function parseTaskDateValue(value) {
     return applyTime(date, time)
   }
 
+  if (time && /^(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)$/i.test(text)) {
+    const now = new Date()
+    const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
+    return applyTime(date, time)
+  }
+
   const dateOnly = parseDateOnly(text)
   if (dateOnly) return applyTime(dateOnly, time)
 

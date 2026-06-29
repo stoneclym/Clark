@@ -188,6 +188,19 @@ function parseTime(value: string) {
   return { hours, minutes }
 }
 
+function enrichDueText(dueDate: unknown, sourceText: unknown) {
+  const due = String(dueDate || '').trim()
+  const source = String(sourceText || '')
+  if (!due) return due
+  if (parseTime(due)) return due
+
+  const escapedDue = due.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const dueWithTime = source.match(new RegExp(`\\b${escapedDue}\\s+(?:at\\s*)?\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\b`, 'i'))
+  if (dueWithTime) return dueWithTime[0]
+
+  return due
+}
+
 function applyDeadlineTime(date: Date, time: { hours: number; minutes: number } | null) {
   const applied = time || { hours: 23, minutes: 59 }
   return dateFromClarkParts(clarkYear(date), clarkMonth(date), clarkDay(date), applied.hours, applied.minutes)
@@ -213,6 +226,11 @@ function parseDeadlineDate(value: string) {
     if (relative === 'yesterday') date.setUTCDate(date.getUTCDate() - 1)
     if (relative === 'tomorrow') date.setUTCDate(date.getUTCDate() + 1)
     return date
+  }
+
+  if (parseTime(text) && /^(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)$/i.test(text)) {
+    const now = new Date()
+    return dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
   }
 
   const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
@@ -393,7 +411,7 @@ Rules:
 
     const { error: taskError } = await supabase.from('tasks').insert(
       (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => {
-        const deadline = normalizeTaskDeadline(t.due_date)
+        const deadline = normalizeTaskDeadline(enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`))
         return {
           title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
           category: String(t.category || 'Class'),
