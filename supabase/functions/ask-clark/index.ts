@@ -115,6 +115,29 @@ function normalizeClassLabel(value: unknown) {
   return TASK_CLASS_TAGS[normalized] || null
 }
 
+const CLARK_OFFSET_MINUTES = -7 * 60
+const CLARK_OFFSET_MS = CLARK_OFFSET_MINUTES * 60_000
+
+function clarkShiftedDate(date: Date) {
+  return new Date(date.getTime() + CLARK_OFFSET_MS)
+}
+
+function clarkYear(date: Date) {
+  return clarkShiftedDate(date).getUTCFullYear()
+}
+
+function clarkMonth(date: Date) {
+  return clarkShiftedDate(date).getUTCMonth()
+}
+
+function clarkDay(date: Date) {
+  return clarkShiftedDate(date).getUTCDate()
+}
+
+function dateFromClarkParts(year: number, monthIndex: number, day: number, hours = 0, minutes = 0) {
+  return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0, 0) - CLARK_OFFSET_MS)
+}
+
 const WEEKDAYS: Record<string, number> = {
   sunday: 0,
   monday: 1,
@@ -141,35 +164,34 @@ function parseTime(value: string) {
 }
 
 function applyDeadlineTime(date: Date, time: { hours: number; minutes: number } | null) {
-  const copy = new Date(date)
   const applied = time || { hours: 23, minutes: 59 }
-  copy.setHours(applied.hours, applied.minutes, 0, 0)
-  return copy
+  return dateFromClarkParts(clarkYear(date), clarkMonth(date), clarkDay(date), applied.hours, applied.minutes)
 }
-
 function nextWeekdayDate(dayName: string) {
   const targetDay = WEEKDAYS[dayName]
   if (targetDay == null) return null
-  const date = new Date()
-  const diff = (targetDay - date.getDay() + 7) % 7
-  date.setDate(date.getDate() + diff)
+  const now = new Date()
+  const currentDay = clarkShiftedDate(now).getUTCDay()
+  const diff = (targetDay - currentDay + 7) % 7
+  const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
+  date.setUTCDate(date.getUTCDate() + diff)
   return date
 }
-
 function parseDeadlineDate(value: string) {
   const text = value.trim()
   const lower = text.toLowerCase()
 
   const relative = lower.replace(/\s+at\s+.*$/i, '')
   if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
-    const date = new Date()
-    if (relative === 'yesterday') date.setDate(date.getDate() - 1)
-    if (relative === 'tomorrow') date.setDate(date.getDate() + 1)
+    const now = new Date()
+    const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
+    if (relative === 'yesterday') date.setUTCDate(date.getUTCDate() - 1)
+    if (relative === 'tomorrow') date.setUTCDate(date.getUTCDate() + 1)
     return date
   }
 
   const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
-  if (dateOnly) return new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+  if (dateOnly) return dateFromClarkParts(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
 
   if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(text)) {
     const date = new Date(text)
@@ -180,14 +202,14 @@ function parseDeadlineDate(value: string) {
   if (slashDate) {
     const year = slashDate[3]
       ? Number(slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3])
-      : new Date().getFullYear()
-    return new Date(year, Number(slashDate[1]) - 1, Number(slashDate[2]))
+      : clarkYear(new Date())
+    return dateFromClarkParts(year, Number(slashDate[1]) - 1, Number(slashDate[2]))
   }
 
   if (MONTH_NAME_PATTERN.test(text) && /\d{1,2}/.test(text) && /\d{4}/.test(text)) {
     const dateText = text.replace(/\s+at\s+.*$/i, '')
-    const date = new Date(dateText)
-    return Number.isNaN(date.getTime()) ? null : date
+    const parsed = new Date(dateText)
+    return Number.isNaN(parsed.getTime()) ? null : dateFromClarkParts(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
   }
 
   const weekday = Object.keys(WEEKDAYS).find(day => lower === day || lower.startsWith(`${day} at `))

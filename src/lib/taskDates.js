@@ -1,15 +1,43 @@
 export const OVERDUE_COLOR = '#C0392B'
 
+const CLARK_TIME_ZONE = 'Etc/GMT+7'
+const CLARK_OFFSET_MINUTES = -7 * 60
+const CLARK_OFFSET_MS = CLARK_OFFSET_MINUTES * 60_000
+const DAY_MS = 86_400_000
 const MONTH_NAME_PATTERN = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i
 
 export function startOfLocalDay(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return dateFromClarkParts(clarkYear(date), clarkMonth(date), clarkDay(date))
+}
+
+function clarkShiftedDate(date) {
+  return new Date(date.getTime() + CLARK_OFFSET_MS)
+}
+
+function clarkYear(date) {
+  return clarkShiftedDate(date).getUTCFullYear()
+}
+
+function clarkMonth(date) {
+  return clarkShiftedDate(date).getUTCMonth()
+}
+
+function clarkDay(date) {
+  return clarkShiftedDate(date).getUTCDate()
+}
+
+function clarkDayNumber(date) {
+  return Math.floor((date.getTime() + CLARK_OFFSET_MS) / DAY_MS)
+}
+
+function dateFromClarkParts(year, monthIndex, day, hours = 0, minutes = 0) {
+  return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0, 0) - CLARK_OFFSET_MS)
 }
 
 function parseDateOnly(value) {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
   if (!match) return null
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  return dateFromClarkParts(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
 }
 
 export function hasExplicitTime(value) {
@@ -32,12 +60,13 @@ function parseTime(value) {
 }
 
 function applyTime(date, time) {
-  const copy = new Date(date)
   if (time) {
-    copy.setHours(time.hours, time.minutes, 0, 0)
-    return { date: copy, hasTime: true }
+    return {
+      date: dateFromClarkParts(clarkYear(date), clarkMonth(date), clarkDay(date), time.hours, time.minutes),
+      hasTime: true,
+    }
   }
-  return { date: copy, hasTime: false }
+  return { date, hasTime: false }
 }
 
 function parseSlashDate(value) {
@@ -45,14 +74,16 @@ function parseSlashDate(value) {
   if (!match) return null
   const year = match[3]
     ? Number(match[3].length === 2 ? `20${match[3]}` : match[3])
-    : new Date().getFullYear()
-  return new Date(year, Number(match[1]) - 1, Number(match[2]))
+    : clarkYear(new Date())
+  return dateFromClarkParts(year, Number(match[1]) - 1, Number(match[2]))
 }
+
 function parseMonthNameDate(value) {
   if (!MONTH_NAME_PATTERN.test(value) || !/\d{1,2}/.test(value) || !/\d{4}/.test(value)) return null
   const dateText = value.replace(/\s+at\s+.*$/i, '')
-  const date = new Date(dateText)
-  return Number.isNaN(date.getTime()) ? null : date
+  const parsed = new Date(dateText)
+  if (Number.isNaN(parsed.getTime())) return null
+  return dateFromClarkParts(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
 }
 
 export function parseTaskDateValue(value) {
@@ -64,9 +95,10 @@ export function parseTaskDateValue(value) {
   const time = parseTime(text)
   const relative = text.toLowerCase()
   if (['yesterday', 'today', 'tomorrow'].includes(relative.replace(/\s+at\s+.*$/i, ''))) {
-    const date = startOfLocalDay(new Date())
-    if (relative.startsWith('yesterday')) date.setDate(date.getDate() - 1)
-    if (relative.startsWith('tomorrow')) date.setDate(date.getDate() + 1)
+    const now = new Date()
+    const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
+    if (relative.startsWith('yesterday')) date.setUTCDate(date.getUTCDate() - 1)
+    if (relative.startsWith('tomorrow')) date.setUTCDate(date.getUTCDate() + 1)
     return applyTime(date, time)
   }
 
@@ -89,6 +121,7 @@ export function parseTaskDateValue(value) {
 
 function formatTime(date) {
   return date.toLocaleTimeString('en-US', {
+    timeZone: CLARK_TIME_ZONE,
     hour: 'numeric',
     minute: '2-digit',
   })
@@ -102,15 +135,16 @@ export function getTaskDateInfo(task) {
     stored.hasTime = false
   }
 
-  const today = startOfLocalDay(new Date())
-  const taskDay = startOfLocalDay(stored.date)
-  const dayDiff = Math.round((taskDay - today) / 86_400_000)
+  const todayDayNumber = clarkDayNumber(new Date())
+  const taskDayNumber = clarkDayNumber(stored.date)
+  const dayDiff = taskDayNumber - todayDayNumber
   const isPast = stored.hasTime ? stored.date < new Date() : dayDiff < 0
 
   if (dayDiff === 0) return { label: stored.hasTime ? `Today, ${formatTime(stored.date)}` : 'Today', isPast, hasRealDate: true, date: stored.date }
   if (dayDiff === 1) return { label: stored.hasTime ? `Tomorrow, ${formatTime(stored.date)}` : 'Tomorrow', isPast: false, hasRealDate: true, date: stored.date }
 
   const dateLabel = stored.date.toLocaleDateString('en-US', {
+    timeZone: CLARK_TIME_ZONE,
     month: '2-digit',
     day: '2-digit',
     year: '2-digit',
