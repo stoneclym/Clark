@@ -82,9 +82,9 @@ function ClubCard({ club, onToggleTask }) {
         </div>
       )}
 
-      {club.club_tasks?.length > 0 && (
+      {club.club_tasks?.filter(t => !t.done).length > 0 && (
         <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {club.club_tasks.map(task => (
+          {club.club_tasks.filter(t => !t.done).map(task => (
             <div
               key={task.id}
               onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, task.done) }}

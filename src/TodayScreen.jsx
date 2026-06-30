@@ -157,8 +157,15 @@ function BrainDumpCard({ onParsed }) {
 
   const taskCount = lastResult?.tasks?.length || 0
   const gradeCount = lastResult?.grades?.length || 0
+  const meetingCount = lastResult?.club_meetings?.length || 0
+  const clubTaskCount = lastResult?.club_tasks?.length || 0
   const summary = status === 'done' && lastResult
-    ? `Parsed · ${[taskCount && `${taskCount} task${taskCount > 1 ? 's' : ''}`, gradeCount && `${gradeCount} grade${gradeCount > 1 ? 's' : ''}`].filter(Boolean).join(', ')}`
+    ? `Parsed · ${[
+        taskCount && `${taskCount} task${taskCount > 1 ? 's' : ''}`,
+        gradeCount && `${gradeCount} grade${gradeCount > 1 ? 's' : ''}`,
+        meetingCount && `${meetingCount} meeting${meetingCount > 1 ? 's' : ''}`,
+        clubTaskCount && `${clubTaskCount} club task${clubTaskCount > 1 ? 's' : ''}`,
+      ].filter(Boolean).join(', ') || 'nothing new'}`
     : 'Use your keyboard mic for voice, or type it out'
 
   return (
