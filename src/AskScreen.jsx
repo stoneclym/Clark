@@ -12,9 +12,36 @@ export default function AskScreen({ onBack }) {
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const [viewportHeight, setViewportHeight] = useState(() => (
+    typeof window === 'undefined' ? '100dvh' : `${window.visualViewport?.height || window.innerHeight}px`
+  ))
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const updateViewportHeight = () => {
+      setViewportHeight(`${window.visualViewport?.height || window.innerHeight}px`)
+    }
+
+    updateViewportHeight()
+    window.visualViewport?.addEventListener('resize', updateViewportHeight)
+    window.visualViewport?.addEventListener('scroll', updateViewportHeight)
+    window.addEventListener('resize', updateViewportHeight)
+
+    const previousBodyOverflow = document.body.style.overflow
+    const previousHtmlOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateViewportHeight)
+      window.visualViewport?.removeEventListener('scroll', updateViewportHeight)
+      window.removeEventListener('resize', updateViewportHeight)
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousHtmlOverflow
+    }
+  }, [])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [messages])
 
   const send = useCallback(async (text) => {
@@ -57,17 +84,15 @@ export default function AskScreen({ onBack }) {
   }, [input, send])
 
   return (
-    /*
-      height: 100dvh = dynamic viewport height.
-      On iOS, dvh shrinks when the keyboard opens, so the layout
-      compresses and the input stays above the keyboard automatically.
-    */
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: '100dvh',
+      height: viewportHeight,
+      maxHeight: viewportHeight,
       background: 'var(--bg)',
       position: 'fixed', inset: 0,
       zIndex: 10,
+      overflow: 'hidden',
+      overscrollBehavior: 'none',
     }}>
       {/* Header */}
       <div style={{
@@ -124,7 +149,7 @@ export default function AskScreen({ onBack }) {
       </div>
 
       {/* Messages — scrolls independently */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 16px 14px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 16px 14px' }}>
         {messages.map(msg => (
           <ChatBubble key={msg.id} msg={msg} />
         ))}
@@ -152,7 +177,7 @@ export default function AskScreen({ onBack }) {
       <div style={{
         background: 'var(--bg)',
         borderTop: '1px solid var(--border)',
-        padding: '10px 14px 28px',
+        padding: '10px 14px max(14px, env(safe-area-inset-bottom))',
         display: 'flex', alignItems: 'flex-end', gap: 10,
         flexShrink: 0,
       }}>
