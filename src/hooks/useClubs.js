@@ -24,5 +24,16 @@ export function useClubs() {
     return () => supabase.removeChannel(channel)
   }, [fetchClubs])
 
-  return { clubs, loading }
+  const toggleClubTask = useCallback(async (taskId, currentDone) => {
+    // Optimistic update so the checkbox responds instantly
+    setClubs(prev => prev.map(club => ({
+      ...club,
+      club_tasks: club.club_tasks?.map(t =>
+        t.id === taskId ? { ...t, done: !currentDone } : t
+      ),
+    })))
+    await supabase.from('club_tasks').update({ done: !currentDone }).eq('id', taskId)
+  }, [])
+
+  return { clubs, loading, toggleClubTask }
 }

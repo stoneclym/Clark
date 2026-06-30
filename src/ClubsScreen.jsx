@@ -1,16 +1,7 @@
-import { useCallback } from 'react'
 import { useClubs } from './hooks/useClubs.js'
-import { supabase } from './lib/supabase.js'
 
 export default function ClubsScreen({ onCloseQuick }) {
-  const { clubs, loading } = useClubs()
-
-  const toggleTask = useCallback(async (taskId, done) => {
-    await supabase
-      .from('club_tasks')
-      .update({ done: !done })
-      .eq('id', taskId)
-  }, [])
+  const { clubs, loading, toggleClubTask } = useClubs()
 
   if (loading) {
     return (
@@ -30,7 +21,7 @@ export default function ClubsScreen({ onCloseQuick }) {
       </div>
 
       {clubs.map(club => (
-        <ClubCard key={club.id} club={club} onToggleTask={toggleTask} />
+        <ClubCard key={club.id} club={club} onToggleTask={toggleClubTask} />
       ))}
     </div>
   )
