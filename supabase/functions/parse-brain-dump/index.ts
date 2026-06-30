@@ -339,6 +339,125 @@ function taskTag(value: unknown) {
   return normalizeClassLabel(tag)
 }
 
+
+type ActiveTask = {
+  id: string
+  title: string
+  category: string | null
+  tag: string | null
+  due_date?: string | null
+  due_at?: string | null
+  done: boolean
+}
+
+const MATCH_STOP_WORDS = new Set([
+  'a', 'an', 'and', 'already', 'complete', 'completed', 'did', 'do', 'done', 'finished',
+  'for', 'i', 'just', 'my', 'oh', 'please', 'task', 'that', 'the', 'those', 'to', 'with',
+])
+
+function normalizeMatchText(value: unknown) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\b(?:oh\s+and\s+)?i\s+(?:already\s+|just\s+)?(?:did|finished|completed|complete)\b/g, ' ')
+    .replace(/\b(?:mark|check)\s+(?:off|done|complete|completed)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function matchTokens(value: unknown) {
+  return normalizeMatchText(value)
+    .split(' ')
+    .map(token => TASK_CLASS_TAGS[token] ? token : token)
+    .filter(token => token && token.length > 1 && !MATCH_STOP_WORDS.has(token))
+}
+
+function uniqueTokens(value: unknown) {
+  return [...new Set(matchTokens(value))]
+}
+
+function tokenOverlapScore(a: string[], b: string[]) {
+  if (!a.length || !b.length) return 0
+  const bSet = new Set(b)
+  const overlap = a.filter(token => bSet.has(token)).length
+  return overlap / Math.min(a.length, b.length)
+}
+
+function completionTag(completion: Record<string, unknown>) {
+  return taskTag(completion.tag) || normalizeClassLabel(completion.class_name) || normalizeClassLabel(completion.category)
+}
+
+function completionCategory(completion: Record<string, unknown>) {
+  const category = String(completion.category || '').trim()
+  return category || null
+}
+
+function completionTitle(completion: Record<string, unknown>) {
+  return String(completion.title || completion.task_title || completion.text || completion.description || '').trim()
+}
+
+function matchCompletionToActiveTask(completion: Record<string, unknown>, activeTasks: ActiveTask[]) {
+  const targetTitle = completionTitle(completion)
+  const targetTag = completionTag(completion)
+  const targetCategory = completionCategory(completion)
+  const targetTokens = uniqueTokens(targetTitle)
+
+  if (!targetTokens.length) return { status: 'skipped', reason: 'missing completion title' }
+
+  const ranked = activeTasks
+    .filter(task => !task.done)
+    .map(task => {
+      const taskTokens = uniqueTokens(task.title)
+      const titleScore = tokenOverlapScore(targetTokens, taskTokens)
+      const tagMatches = targetTag && task.tag ? targetTag === task.tag : false
+      const categoryMatches = targetCategory && task.category
+        ? normalizeMatchText(targetCategory) === normalizeMatchText(task.category)
+        : false
+      const score = (titleScore * 0.78) + (tagMatches ? 0.18 : 0) + (categoryMatches ? 0.04 : 0)
+      return { task, score, titleScore, tagMatches, categoryMatches }
+    })
+    .filter(match => match.score >= 0.72 && match.titleScore >= 0.5)
+    .sort((a, b) => b.score - a.score)
+
+  if (!ranked.length) return { status: 'skipped', reason: 'no confident active task match' }
+
+  const [best, second] = ranked
+  if (second && best.score - second.score < 0.15) {
+    return {
+      status: 'ambiguous',
+      reason: 'multiple active tasks matched completion language',
+      matches: ranked.slice(0, 3).map(match => ({ id: match.task.id, title: match.task.title, score: Number(match.score.toFixed(3)) })),
+    }
+  }
+
+  const isShortGenericTarget = targetTokens.length < 2 && !targetTag && !targetCategory
+  if (isShortGenericTarget && best.score < 0.95) {
+    return { status: 'skipped', reason: 'completion target too generic' }
+  }
+
+  return {
+    status: 'matched',
+    task: best.task,
+    score: Number(best.score.toFixed(3)),
+  }
+}
+
+function isDuplicateCompletionTask(task: Record<string, unknown>, completions: Array<Record<string, unknown>>) {
+  const titleTokens = uniqueTokens(task.title)
+  if (!titleTokens.length) return false
+
+  return completions.some(completion => {
+    const completionTokens = uniqueTokens(completionTitle(completion))
+    if (!completionTokens.length) return false
+    const overlap = tokenOverlapScore(titleTokens, completionTokens)
+    const taskClassTag = taskTag(task.tag) || normalizeClassLabel(task.category)
+    const completedClassTag = completionTag(completion)
+    return overlap >= 0.75 && (!taskClassTag || !completedClassTag || taskClassTag === completedClassTag)
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -367,6 +486,9 @@ Return ONLY valid JSON with this shape:
   ],
   "club_tasks": [
     { "club_name": string, "task_text": string }
+  ],
+  "completed_tasks": [
+    { "title": string, "class_name": string|null, "category": string|null, "tag": string|null }
   ]
 }
 
@@ -376,6 +498,9 @@ Rules:
 - Do not use status words like "overdue", "late", "today", "tomorrow", or "yesterday" as task tags. Tags are only for a class, club, or category.
 - For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
 - For club tasks: club_name must be one of: National Honor Society, Beta Club, Spanish Club, Senior Class
+- Completion language such as "I did X", "I finished X", "I completed X", "Oh and I did X", or "I already finished X" must go in completed_tasks, not tasks.
+- completed_tasks.title should be the existing task being completed, without words like "I finished" or "I did". Include class_name/tag/category when the user says or implies one.
+- Never create a new task for completion language.
 - Only include keys with items; omit empty arrays
 - No markdown, no explanation — raw JSON only`
 
@@ -403,14 +528,69 @@ Rules:
   }
 
   const dbErrors: string[] = []
+  const completionResults: Array<Record<string, unknown>> = []
+  const parsedCompletions = Array.isArray(parsed.completed_tasks)
+    ? parsed.completed_tasks as Array<Record<string, unknown>>
+    : []
+
+  // Complete existing active tasks before inserting anything new. Completion language should not create duplicates.
+  if (parsedCompletions.length) {
+    const { data: activeTasks, error: activeTaskError } = await supabase
+      .from('tasks')
+      .select('id, title, category, tag, due_date, due_at, done')
+      .eq('done', false)
+
+    if (activeTaskError) {
+      dbErrors.push(`completed_tasks: ${activeTaskError.message}`)
+    } else {
+      for (const completion of parsedCompletions) {
+        const match = matchCompletionToActiveTask(completion, (activeTasks || []) as ActiveTask[])
+        const result: Record<string, unknown> = {
+          title: completionTitle(completion),
+          status: match.status,
+        }
+
+        if (match.status === 'matched' && 'task' in match) {
+          const { data: completedRows, error: completeError } = await supabase
+            .from('tasks')
+            .update({ done: true })
+            .eq('id', match.task.id)
+            .eq('done', false)
+            .select('id')
+
+          if (completeError) {
+            dbErrors.push(`completed_tasks(${match.task.title}): ${completeError.message}`)
+            result.status = 'error'
+          } else if (!completedRows?.length) {
+            result.status = 'skipped'
+            result.reason = 'task was already completed or no longer active'
+          } else {
+            result.completed_task_id = match.task.id
+            result.completed_task_title = match.task.title
+            result.score = match.score
+          }
+        } else {
+          Object.assign(result, match)
+        }
+
+        completionResults.push(result)
+      }
+    }
+  }
+
+  if (completionResults.length) parsed.completed_task_results = completionResults
 
   // Insert tasks
-  if (Array.isArray(parsed.tasks) && parsed.tasks.length) {
+  const tasksToInsert = Array.isArray(parsed.tasks)
+    ? (parsed.tasks as Array<Record<string, unknown>>).filter(task => !isDuplicateCompletionTask(task, parsedCompletions))
+    : []
+
+  if (tasksToInsert.length) {
     const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
     const baseRank = (count || 0) + 1
 
     const { error: taskError } = await supabase.from('tasks').insert(
-      (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => {
+      tasksToInsert.map((t, i) => {
         const deadline = normalizeTaskDeadline(enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`))
         return {
           title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
