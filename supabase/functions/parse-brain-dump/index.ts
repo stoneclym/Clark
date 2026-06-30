@@ -351,8 +351,14 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Load actual grade rows, then give AI the formal display names Clark supports.
-  const { data: gradeRows } = await supabase.from('grades').select('id, class_name').order('class_order')
+  // Load grade rows and club rows so AI can match exactly.
+  const [gradesResult, clubsResult] = await Promise.all([
+    supabase.from('grades').select('id, class_name').order('class_order'),
+    supabase.from('clubs').select('id, name').order('display_order'),
+  ])
+  const gradeRows = gradesResult.data
+  const clubRows = (clubsResult.data ?? []) as Array<{ id: string; name: string }>
+  const clubNames = clubRows.map(c => c.name)
   const classNames = FORMAL_GRADE_ORDER.join(' | ')
 
   const SYSTEM = `You are Clark's brain-dump parser. The user speaks or types freely and you extract every action item.
@@ -367,6 +373,9 @@ Return ONLY valid JSON with this shape:
   ],
   "club_tasks": [
     { "club_name": string, "task_text": string }
+  ],
+  "club_meetings": [
+    { "club_name": string, "when": string }
   ]
 }
 
@@ -375,7 +384,9 @@ Rules:
 - priority must be a boolean true or false, never a string
 - Do not use status words like "overdue", "late", "today", "tomorrow", or "yesterday" as task tags. Tags are only for a class, club, or category.
 - For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
-- For club tasks: club_name must be one of: National Honor Society, Beta Club, Spanish Club, Senior Class
+- For club_meetings: use when the user announces a club meeting happening at a specific time ("NHS meeting tomorrow at 3:30", "Beta Club meets Friday", "We have a Spanish Club meeting next week"). "when" is the natural-language time. You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
+- For club_tasks: use when the user mentions something they need to DO for a club ("make slides for Spanish Club", "print forms for NHS"). You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
+- CRITICAL DISTINCTION: A meeting announcement (event on the calendar) → club_meetings. An action item to complete → club_tasks or tasks. NEVER create a generic task for a meeting announcement.
 - Only include keys with items; omit empty arrays
 - No markdown, no explanation — raw JSON only`
 
@@ -458,16 +469,34 @@ Rules:
     }
   }
 
-  // Insert club tasks
+  // Insert club tasks — exact club_name match using pre-loaded club rows
   if (Array.isArray(parsed.club_tasks) && parsed.club_tasks.length) {
     for (const ct of parsed.club_tasks as Array<Record<string, unknown>>) {
-      const { data: clubs } = await supabase.from('clubs').select('id')
-        .ilike('name', `%${String(ct.club_name || '').split(' ')[0]}%`).limit(1)
-      if (clubs && clubs.length > 0) {
+      const clubName = String(ct.club_name || '').trim()
+      const clubRow = clubRows.find(c => c.name === clubName)
+      if (clubRow) {
         const { error: ctError } = await supabase.from('club_tasks')
-          .insert({ club_id: clubs[0].id, task_text: ct.task_text })
-        if (ctError) dbErrors.push(`club_tasks: ${ctError.message}`)
+          .insert({ club_id: clubRow.id, task_text: String(ct.task_text || '').trim() })
+        if (ctError) dbErrors.push(`club_tasks(${clubName}): ${ctError.message}`)
+      } else {
+        dbErrors.push(`club_tasks: no club found matching "${clubName}"`)
       }
+    }
+  }
+
+  // Update club next_meeting — exact club_name match
+  if (Array.isArray(parsed.club_meetings) && parsed.club_meetings.length) {
+    for (const cm of parsed.club_meetings as Array<Record<string, unknown>>) {
+      const clubName = String(cm.club_name || '').trim()
+      const when = String(cm.when || '').trim()
+      if (!clubName || !when) continue
+
+      const { error: cmError } = await supabase
+        .from('clubs')
+        .update({ next_meeting: when })
+        .eq('name', clubName)
+
+      if (cmError) dbErrors.push(`club_meetings(${clubName}): ${cmError.message}`)
     }
   }
 

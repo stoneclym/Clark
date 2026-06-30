@@ -307,6 +307,18 @@ const tools: Anthropic.Tool[] = [
       required: ['title_match'],
     },
   },
+  {
+    name: 'set_club_meeting',
+    description: 'Set or update the next meeting date/time for a club. Use when the user mentions when a club meeting is happening — e.g. "NHS meeting is tomorrow at 3:30", "Beta Club meets Friday". Do NOT use this for action items to complete; use create_task for those.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        club_name: { type: 'string', description: 'Full exact name of the club: "National Honor Society", "Beta Club", "Spanish Club", or "Senior Class"' },
+        when: { type: 'string', description: 'Natural language meeting time: "tomorrow at 3:30", "Friday after school", "next Wednesday at 4 PM"' },
+      },
+      required: ['club_name', 'when'],
+    },
+  },
 ]
 
 Deno.serve(async (req) => {
@@ -362,7 +374,7 @@ ${clubs.map(c => {
 
 Be conversational, concise, and genuinely helpful. Use short sentences. When listing things, use bullet points. Speak like a knowledgeable friend — not a formal assistant.
 
-IMPORTANT: When the user asks you to add a task, create a reminder, or "note" something — you MUST call the create_task tool to actually save it. When they say something is done or finished, call mark_task_done. Never claim you've done something without calling the tool.
+IMPORTANT: When the user asks you to add a task, create a reminder, or "note" something — you MUST call the create_task tool to actually save it. When they say something is done or finished, call mark_task_done. When the user mentions when a club meeting is happening ("NHS meeting is tomorrow at 3:30", "Beta Club meets Friday"), call set_club_meeting — do NOT create a task for a meeting announcement. Never claim you've done something without calling the tool.
 
 Current context:
 ${context}`
@@ -413,6 +425,16 @@ ${context}`
           : count
             ? `Marked ${count} task(s) as done.`
             : 'No matching tasks found.'
+      }
+
+      if (block.name === 'set_club_meeting') {
+        const { error } = await supabase
+          .from('clubs')
+          .update({ next_meeting: input.when as string })
+          .ilike('name', `%${(input.club_name as string).split(' ')[0]}%`)
+        result = error
+          ? `Error updating meeting: ${error.message}`
+          : `Updated ${input.club_name} next meeting to "${input.when}".`
       }
 
       toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result })

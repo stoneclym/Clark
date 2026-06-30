@@ -17,7 +17,8 @@ export function useClubs() {
   useEffect(() => {
     fetchClubs()
     const channel = supabase
-      .channel('club_tasks')
+      .channel('clubs-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clubs' }, fetchClubs)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'club_tasks' }, fetchClubs)
       .subscribe()
     return () => supabase.removeChannel(channel)
