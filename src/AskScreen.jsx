@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase.js'
 
 const GREETING = {
@@ -12,31 +12,57 @@ export default function AskScreen({ onBack }) {
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
-  const [viewportHeight, setViewportHeight] = useState(() => (
-    typeof window === 'undefined' ? '100dvh' : `${window.visualViewport?.height || window.innerHeight}px`
-  ))
+  const [visualViewportStyle, setVisualViewportStyle] = useState(() => ({
+    top: 0,
+    height: typeof window === 'undefined' ? '100dvh' : `${window.visualViewport?.height || window.innerHeight}px`,
+  }))
 
-  useEffect(() => {
-    const updateViewportHeight = () => {
-      setViewportHeight(`${window.visualViewport?.height || window.innerHeight}px`)
+  useLayoutEffect(() => {
+    const scrollY = window.scrollY
+    const { body, documentElement } = document
+    const previousBodyStyles = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    }
+    const previousHtmlOverflow = documentElement.style.overflow
+
+    const updateVisualViewportStyle = () => {
+      const visualViewport = window.visualViewport
+      setVisualViewportStyle({
+        top: visualViewport?.offsetTop || 0,
+        height: `${visualViewport?.height || window.innerHeight}px`,
+      })
     }
 
-    updateViewportHeight()
-    window.visualViewport?.addEventListener('resize', updateViewportHeight)
-    window.visualViewport?.addEventListener('scroll', updateViewportHeight)
-    window.addEventListener('resize', updateViewportHeight)
+    updateVisualViewportStyle()
+    window.visualViewport?.addEventListener('resize', updateVisualViewportStyle)
+    window.visualViewport?.addEventListener('scroll', updateVisualViewportStyle)
+    window.addEventListener('resize', updateVisualViewportStyle)
 
-    const previousBodyOverflow = document.body.style.overflow
-    const previousHtmlOverflow = document.documentElement.style.overflow
-    document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
+    documentElement.style.overflow = 'hidden'
+    body.style.overflow = 'hidden'
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
 
     return () => {
-      window.visualViewport?.removeEventListener('resize', updateViewportHeight)
-      window.visualViewport?.removeEventListener('scroll', updateViewportHeight)
-      window.removeEventListener('resize', updateViewportHeight)
-      document.body.style.overflow = previousBodyOverflow
-      document.documentElement.style.overflow = previousHtmlOverflow
+      window.visualViewport?.removeEventListener('resize', updateVisualViewportStyle)
+      window.visualViewport?.removeEventListener('scroll', updateVisualViewportStyle)
+      window.removeEventListener('resize', updateVisualViewportStyle)
+      documentElement.style.overflow = previousHtmlOverflow
+      body.style.overflow = previousBodyStyles.overflow
+      body.style.position = previousBodyStyles.position
+      body.style.top = previousBodyStyles.top
+      body.style.left = previousBodyStyles.left
+      body.style.right = previousBodyStyles.right
+      body.style.width = previousBodyStyles.width
+      window.scrollTo(0, scrollY)
     }
   }, [])
 
@@ -86,10 +112,13 @@ export default function AskScreen({ onBack }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: viewportHeight,
-      maxHeight: viewportHeight,
+      height: visualViewportStyle.height,
+      maxHeight: visualViewportStyle.height,
       background: 'var(--bg)',
-      position: 'fixed', inset: 0,
+      position: 'fixed',
+      top: visualViewportStyle.top,
+      left: 0,
+      right: 0,
       zIndex: 10,
       overflow: 'hidden',
       overscrollBehavior: 'none',
@@ -149,7 +178,7 @@ export default function AskScreen({ onBack }) {
       </div>
 
       {/* Messages — scrolls independently */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 16px 14px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', display: 'flex', flexDirection: 'column', gap: 14, padding: '18px 16px 14px' }}>
         {messages.map(msg => (
           <ChatBubble key={msg.id} msg={msg} />
         ))}
@@ -199,6 +228,9 @@ export default function AskScreen({ onBack }) {
               color: 'var(--text)', resize: 'none', overflowY: 'hidden',
               lineHeight: 1.45,
               minHeight: 22, maxHeight: 120,
+            }}
+            onFocus={() => {
+              requestAnimationFrame(() => window.scrollTo(0, 0))
             }}
             onInput={e => {
               const el = e.currentTarget
