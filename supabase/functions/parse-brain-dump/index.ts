@@ -1,5 +1,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.30.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { buildScheduleContext, describeScheduleContext } from '../_shared/scheduleContext.js'
+import { computeDeadline, TIME_PATTERN } from '../_shared/deadlineEngine.js'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
@@ -115,169 +117,19 @@ function normalizeClassLabel(value: unknown) {
   return TASK_CLASS_TAGS[normalized] || null
 }
 
-const CLARK_TIME_ZONE = 'America/New_York'
-const CLARK_DATE_PARTS = new Intl.DateTimeFormat('en-US', {
-  timeZone: CLARK_TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: false,
-})
-
-function clarkParts(date: Date) {
-  return CLARK_DATE_PARTS.formatToParts(date).reduce((parts, part) => {
-    if (part.type !== 'literal') parts[part.type] = Number(part.value)
-    return parts
-  }, {} as Record<string, number>)
-}
-
-function clarkOffsetMs(date: Date) {
-  const parts = clarkParts(date)
-  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour % 24, parts.minute, parts.second, 0)
-  return asUtc - date.getTime()
-}
-
-function clarkYear(date: Date) {
-  return clarkParts(date).year
-}
-
-function clarkMonth(date: Date) {
-  return clarkParts(date).month - 1
-}
-
-function clarkDay(date: Date) {
-  return clarkParts(date).day
-}
-
-function clarkWeekday(date: Date) {
-  const parts = clarkParts(date)
-  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay()
-}
-
-function dateFromClarkParts(year: number, monthIndex: number, day: number, hours = 0, minutes = 0) {
-  const utcGuess = Date.UTC(year, monthIndex, day, hours, minutes, 0, 0)
-  const firstPass = new Date(utcGuess - clarkOffsetMs(new Date(utcGuess)))
-  return new Date(utcGuess - clarkOffsetMs(firstPass))
-}
-
-const WEEKDAYS: Record<string, number> = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-}
-
-const MONTH_NAME_PATTERN = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i
-
-function parseTime(value: string) {
-  const match = value.match(/\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
-  if (!match) return null
-
-  let hours = Number(match[1])
-  const minutes = Number(match[2] || 0)
-  const meridiem = match[3].toLowerCase()
-  if (meridiem === 'pm' && hours < 12) hours += 12
-  if (meridiem === 'am' && hours === 12) hours = 0
-  if (hours > 23 || minutes > 59) return null
-  return { hours, minutes }
-}
-
+// If the user's text pairs the due phrase with an explicit clock time
+// ("Friday at 4 PM"), keep the time attached to what the AI extracted.
 function enrichDueText(dueDate: unknown, sourceText: unknown) {
   const due = String(dueDate || '').trim()
   const source = String(sourceText || '')
   if (!due) return due
-  if (parseTime(due)) return due
+  if (TIME_PATTERN.test(due)) return due
 
   const escapedDue = due.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const dueWithTime = source.match(new RegExp(`\\b${escapedDue}\\s+(?:at\\s*)?\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\b`, 'i'))
   if (dueWithTime) return dueWithTime[0]
 
   return due
-}
-
-function applyDeadlineTime(date: Date, time: { hours: number; minutes: number } | null) {
-  const applied = time || { hours: 23, minutes: 59 }
-  return dateFromClarkParts(clarkYear(date), clarkMonth(date), clarkDay(date), applied.hours, applied.minutes)
-}
-function nextWeekdayDate(dayName: string) {
-  const targetDay = WEEKDAYS[dayName]
-  if (targetDay == null) return null
-  const now = new Date()
-  const currentDay = clarkWeekday(now)
-  const diff = (targetDay - currentDay + 7) % 7
-  const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
-  date.setUTCDate(date.getUTCDate() + diff)
-  return date
-}
-function parseDeadlineDate(value: string) {
-  const text = value.trim()
-  const lower = text.toLowerCase()
-
-  const relative = lower.replace(/\s+at\s+.*$/i, '')
-  if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
-    const now = new Date()
-    const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
-    if (relative === 'yesterday') date.setUTCDate(date.getUTCDate() - 1)
-    if (relative === 'tomorrow') date.setUTCDate(date.getUTCDate() + 1)
-    return date
-  }
-
-  if (parseTime(text) && /^(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)$/i.test(text)) {
-    const now = new Date()
-    return dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
-  }
-
-  const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
-  if (dateOnly) return dateFromClarkParts(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
-
-  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(text)) {
-    const date = new Date(text)
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?(?:\b|\s)/)
-  if (slashDate) {
-    const year = slashDate[3]
-      ? Number(slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3])
-      : clarkYear(new Date())
-    return dateFromClarkParts(year, Number(slashDate[1]) - 1, Number(slashDate[2]))
-  }
-
-  if (MONTH_NAME_PATTERN.test(text) && /\d{1,2}/.test(text) && /\d{4}/.test(text)) {
-    const dateText = text.replace(/\s+at\s+.*$/i, '')
-    const parsed = new Date(dateText)
-    return Number.isNaN(parsed.getTime()) ? null : dateFromClarkParts(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
-  }
-
-  const weekday = Object.keys(WEEKDAYS).find(day => lower === day || lower.startsWith(`${day} at `))
-  return weekday ? nextWeekdayDate(weekday) : null
-}
-
-function normalizeTaskDeadline(value: unknown) {
-  const originalDueText = String(value || '').trim()
-  if (!originalDueText) {
-    return { due_date: null, due_date_calc: null, due_at: null, original_due_text: null }
-  }
-
-  const date = parseDeadlineDate(originalDueText)
-  if (!date) {
-    return { due_date: originalDueText, due_date_calc: null, due_at: null, original_due_text: originalDueText }
-  }
-
-  const dueAt = applyDeadlineTime(date, parseTime(originalDueText))
-  const dueDateCalc = dueAt.toISOString().slice(0, 10)
-  return {
-    due_date: dueDateCalc,
-    due_date_calc: dueDateCalc,
-    due_at: dueAt.toISOString(),
-    original_due_text: originalDueText,
-  }
 }
 
 const FORMAL_GRADE_NAMES: Record<string, string> = {
@@ -344,29 +196,33 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-  const { text, schedule_context } = await req.json()
+  const { text } = await req.json()
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Load grade rows and club rows so AI can match exactly.
-  const [gradesResult, clubsResult] = await Promise.all([
+  // Load grade rows and club rows so AI can match exactly, plus the settings
+  // row so the deadline engine knows the A/B schedule.
+  const [gradesResult, clubsResult, settingsResult] = await Promise.all([
     supabase.from('grades').select('id, class_name').order('class_order'),
     supabase.from('clubs').select('id, name').order('display_order'),
+    supabase.from('settings').select('*').order('created_at', { ascending: false }).limit(1),
   ])
   const gradeRows = gradesResult.data
   const clubRows = (clubsResult.data ?? []) as Array<{ id: string; name: string }>
   const clubNames = clubRows.map(c => c.name)
   const classNames = FORMAL_GRADE_ORDER.join(' | ')
+  const settings = settingsResult.data?.[0] ?? null
+  const scheduleContext = describeScheduleContext(buildScheduleContext(settings))
 
   const SYSTEM = `You are Clark's brain-dump parser. The user speaks or types freely and you extract every action item.
 
 Return ONLY valid JSON with this shape:
 {
   "tasks": [
-    { "title": string, "category": "Class"|"Club"|"College", "tag": string, "due_date": string, "priority": boolean }
+    { "title": string, "category": "Class"|"Club"|"College", "tag": string, "kind": "assignment"|"test"|"event", "due_date": string, "priority": boolean }
   ],
   "grades": [
     { "class_name": string, "percentage": string, "note": string|null }
@@ -380,7 +236,8 @@ Return ONLY valid JSON with this shape:
 }
 
 Rules:
-- "due_date" can be natural language: "today", "next class", "Friday", "tomorrow at 4 PM"
+- "due_date" must quote the user's own scheduling words VERBATIM: "today", "next class", "before class", "Friday", "tomorrow at 4 PM". Do NOT calculate, reword, or resolve dates yourself — deterministic code computes the real date from your extraction.
+- "kind" classifies the item: "test" for tests/quizzes/exams, "event" for things you attend at a set time, "assignment" for anything you produce or complete
 - priority must be a boolean true or false, never a string
 - Do not use status words like "overdue", "late", "today", "tomorrow", or "yesterday" as task tags. Tags are only for a class, club, or category.
 - For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
@@ -396,7 +253,7 @@ Rules:
     system: SYSTEM,
     messages: [{
       role: 'user',
-      content: schedule_context ? `Schedule context: ${schedule_context}\n\nBrain dump: ${text}` : text,
+      content: scheduleContext ? `Schedule context (computed, read-only):\n${scheduleContext}\n\nBrain dump: ${text}` : text,
     }],
   })
 
@@ -422,11 +279,17 @@ Rules:
 
     const { error: taskError } = await supabase.from('tasks').insert(
       (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => {
-        const deadline = normalizeTaskDeadline(enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`))
+        const tag = taskTag(t.tag)
+        const deadline = computeDeadline({
+          kind: t.kind as string,
+          dueText: enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`),
+          className: tag || String(t.tag || ''),
+          title: String(t.title || ''),
+        }, settings)
         return {
           title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
           category: String(t.category || 'Class'),
-          tag: taskTag(t.tag),
+          tag,
           ...deadline,
           priority: t.priority === true,
           priority_rank: t.priority === true ? baseRank + i : null,
