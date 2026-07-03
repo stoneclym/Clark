@@ -1,7 +1,7 @@
 import { useClubs } from './hooks/useClubs.js'
 
 export default function ClubsScreen({ onCloseQuick }) {
-  const { clubs, loading, toggleClubTask } = useClubs()
+  const { clubs, loading, toggleClubTask, deleteMeeting } = useClubs()
 
   if (loading) {
     return (
@@ -21,13 +21,13 @@ export default function ClubsScreen({ onCloseQuick }) {
       </div>
 
       {clubs.map(club => (
-        <ClubCard key={club.id} club={club} onToggleTask={toggleClubTask} />
+        <ClubCard key={club.id} club={club} onToggleTask={toggleClubTask} onDeleteMeeting={deleteMeeting} />
       ))}
     </div>
   )
 }
 
-function ClubCard({ club, onToggleTask }) {
+function ClubCard({ club, onToggleTask, onDeleteMeeting }) {
   const pendingCount = club.club_tasks?.filter(t => !t.done).length ?? 0
 
   return (
@@ -62,16 +62,14 @@ function ClubCard({ club, onToggleTask }) {
       {club.next_meeting && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 11, marginTop: 14,
-          background: club.prominent ? 'var(--accentSoft)' : 'var(--cardAlt)',
-          border: club.prominent ? 'none' : '1px solid var(--border)',
-          borderRadius: 13, padding: '11px 13px',
-          color: club.prominent ? 'var(--accentText)' : 'var(--muted)',
+          background: 'var(--accentSoft)', borderRadius: 13, padding: '11px 13px',
+          color: 'var(--accentText)',
         }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" style={{ flexShrink: 0 }}>
             <rect x="3.5" y="5" width="17" height="16" rx="2.5"/>
             <path d="M3.5 9.5h17M8 3v4M16 3v4"/>
           </svg>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', opacity: 0.75 }}>
               Next meeting
             </div>
@@ -79,6 +77,20 @@ function ClubCard({ club, onToggleTask }) {
               {club.next_meeting}
             </div>
           </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeleteMeeting(club.id) }}
+            aria-label="Remove meeting"
+            style={{
+              flexShrink: 0, width: 22, height: 22, borderRadius: 6, padding: 0,
+              background: 'var(--card)', border: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--accentText)', cursor: 'pointer',
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6L6 18"/>
+            </svg>
+          </button>
         </div>
       )}
 

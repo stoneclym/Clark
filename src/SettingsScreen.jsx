@@ -10,22 +10,122 @@ const OUTLOOK_SCOPES = [
   'User.Read',
 ].join(' ')
 
+function relativeTimestamp(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function ArchiveSection({ title, items, loading, expanded, onToggle, renderItem, emptyText }) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+          background: 'none', border: 'none', padding: 0, marginBottom: 12, cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)' }}>
+          {title}{items.length > 0 ? ` (${items.length})` : ''}
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+
+      {expanded && (
+        loading ? (
+          <div style={{ fontSize: 13, color: 'var(--faint)', padding: '16px 0' }}>Loading…</div>
+        ) : items.length === 0 ? (
+          <div style={{
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: '24px 18px', textAlign: 'center',
+            fontSize: 13.5, color: 'var(--faint)',
+          }}>
+            {emptyText}
+          </div>
+        ) : (
+          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+            {items.map((item, i) => renderItem(item, i))}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
+function ArchiveRow({ isFirst, label, sublabel, onRestore, onDelete }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px',
+      borderTop: isFirst ? 'none' : '1px solid var(--border)',
+    }}>
+      <div style={{
+        flexShrink: 0, width: 20, height: 20, borderRadius: 6,
+        background: 'var(--accentSoft)', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+          <path d="M5 12.5l4.2 4.2L19 7" stroke="var(--accentText)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, color: 'var(--muted)', textDecoration: 'line-through', lineHeight: 1.3 }}>
+          {label}
+        </div>
+        {sublabel && (
+          <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 2 }}>{sublabel}</div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <button
+          onClick={onRestore}
+          style={{
+            padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+            background: 'var(--accentSoft)', color: 'var(--accentText)',
+            border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Restore
+        </button>
+        <button
+          onClick={onDelete}
+          style={{
+            padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600,
+            background: 'rgba(192,57,43,0.08)', color: '#C0392B',
+            border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsScreen({ dark, onBack }) {
   const [completedTasks, setCompletedTasks] = useState([])
+  const [completedMeetings, setCompletedMeetings] = useState([])
+  const [completedClubTasks, setCompletedClubTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [outlookConnecting, setOutlookConnecting] = useState(false)
+  const [expanded, setExpanded] = useState({ tasks: true, meetings: false, clubTasks: false })
+
+  const toggleSection = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }))
 
   useEffect(() => {
-    supabase
-      .from('tasks')
-      .select('*')
-      .eq('done', true)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        if (data) setCompletedTasks(data)
-        setLoading(false)
-      })
+    Promise.all([
+      supabase.from('tasks').select('*').eq('done', true).order('created_at', { ascending: false }).limit(50),
+      supabase.from('completed_meetings').select('*').order('completed_at', { ascending: false }).limit(50),
+      supabase.from('club_tasks').select('*, clubs(name)').eq('done', true).order('created_at', { ascending: false }).limit(50),
+    ]).then(([tasksRes, meetingsRes, clubTasksRes]) => {
+      if (tasksRes.data) setCompletedTasks(tasksRes.data)
+      if (meetingsRes.data) setCompletedMeetings(meetingsRes.data)
+      if (clubTasksRes.data) setCompletedClubTasks(clubTasksRes.data)
+      setLoading(false)
+    })
   }, [])
 
   const connectOutlook = () => {
@@ -49,6 +149,29 @@ export default function SettingsScreen({ dark, onBack }) {
   const deleteTask = async (id) => {
     setCompletedTasks(prev => prev.filter(t => t.id !== id))
     await supabase.from('tasks').delete().eq('id', id)
+  }
+
+  const restoreMeeting = async (meeting) => {
+    setCompletedMeetings(prev => prev.filter(m => m.id !== meeting.id))
+    if (meeting.club_id) {
+      await supabase.from('clubs').update({ next_meeting: meeting.when_text }).eq('id', meeting.club_id)
+    }
+    await supabase.from('completed_meetings').delete().eq('id', meeting.id)
+  }
+
+  const deleteMeetingArchiveRow = async (id) => {
+    setCompletedMeetings(prev => prev.filter(m => m.id !== id))
+    await supabase.from('completed_meetings').delete().eq('id', id)
+  }
+
+  const restoreClubTask = async (id) => {
+    setCompletedClubTasks(prev => prev.filter(t => t.id !== id))
+    await supabase.from('club_tasks').update({ done: false }).eq('id', id)
+  }
+
+  const deleteClubTask = async (id) => {
+    setCompletedClubTasks(prev => prev.filter(t => t.id !== id))
+    await supabase.from('club_tasks').delete().eq('id', id)
   }
 
   return (
@@ -176,82 +299,70 @@ export default function SettingsScreen({ dark, onBack }) {
           </div>
         </div>
 
-        {/* Completed tasks */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 12 }}>
-            Completed Tasks
-          </div>
+        {/* Completed Tasks */}
+        <ArchiveSection
+          title="Completed Tasks"
+          items={completedTasks}
+          loading={loading}
+          expanded={expanded.tasks}
+          onToggle={() => toggleSection('tasks')}
+          emptyText="No completed tasks yet"
+          renderItem={(task, i) => {
+            const dateInfo = getTaskDateInfo(task)
+            return (
+              <ArchiveRow
+                key={task.id}
+                isFirst={i === 0}
+                label={sentenceCaseTaskTitle(task.title)}
+                sublabel={dateInfo.label && (
+                  <span style={{ color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--faint)' }}>{dateInfo.label}</span>
+                )}
+                onRestore={() => restoreTask(task.id)}
+                onDelete={() => deleteTask(task.id)}
+              />
+            )
+          }}
+        />
 
-          {loading ? (
-            <div style={{ fontSize: 13, color: 'var(--faint)', padding: '16px 0' }}>Loading…</div>
-          ) : completedTasks.length === 0 ? (
-            <div style={{
-              background: 'var(--card)', border: '1px solid var(--border)',
-              borderRadius: 16, padding: '24px 18px', textAlign: 'center',
-              fontSize: 13.5, color: 'var(--faint)',
-            }}>
-              No completed tasks yet
-            </div>
-          ) : (
-            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-              {completedTasks.map((task, i) => {
-                const dateInfo = getTaskDateInfo(task)
-                return (
-                <div
-                  key={task.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px',
-                    borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                  }}
-                >
-                  {/* Checkmark */}
-                  <div style={{
-                    flexShrink: 0, width: 20, height: 20, borderRadius: 6,
-                    background: 'var(--accentSoft)', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                      <path d="M5 12.5l4.2 4.2L19 7" stroke="var(--accentText)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, color: 'var(--muted)', textDecoration: 'line-through', lineHeight: 1.3 }}>
-                      {sentenceCaseTaskTitle(task.title)}
-                    </div>
-                    {dateInfo.label && (
-                      <div style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--faint)', marginTop: 2 }}>{dateInfo.label}</div>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                    <button
-                      onClick={() => restoreTask(task.id)}
-                      style={{
-                        padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600,
-                        background: 'var(--accentSoft)', color: 'var(--accentText)',
-                        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      Restore
-                    </button>
-                    <button
-                      onClick={() => deleteTask(task.id)}
-                      style={{
-                        padding: '4px 10px', borderRadius: 7, fontSize: 11, fontWeight: 600,
-                        background: 'rgba(192,57,43,0.08)', color: '#C0392B',
-                        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                )
-              })}
-            </div>
+        {/* Completed Meetings */}
+        <ArchiveSection
+          title="Completed Meetings"
+          items={completedMeetings}
+          loading={loading}
+          expanded={expanded.meetings}
+          onToggle={() => toggleSection('meetings')}
+          emptyText="No completed meetings yet"
+          renderItem={(meeting, i) => (
+            <ArchiveRow
+              key={meeting.id}
+              isFirst={i === 0}
+              label={`${meeting.club_name} — ${meeting.when_text}`}
+              sublabel={relativeTimestamp(meeting.completed_at)}
+              onRestore={() => restoreMeeting(meeting)}
+              onDelete={() => deleteMeetingArchiveRow(meeting.id)}
+            />
           )}
-        </div>
+        />
+
+        {/* Completed Club Tasks */}
+        <ArchiveSection
+          title="Completed Club Tasks"
+          items={completedClubTasks}
+          loading={loading}
+          expanded={expanded.clubTasks}
+          onToggle={() => toggleSection('clubTasks')}
+          emptyText="No completed club tasks yet"
+          renderItem={(task, i) => (
+            <ArchiveRow
+              key={task.id}
+              isFirst={i === 0}
+              label={task.task_text}
+              sublabel={task.clubs?.name}
+              onRestore={() => restoreClubTask(task.id)}
+              onDelete={() => deleteClubTask(task.id)}
+            />
+          )}
+        />
 
       </div>
     </div>

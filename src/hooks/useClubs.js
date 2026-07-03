@@ -35,5 +35,21 @@ export function useClubs() {
     await supabase.from('club_tasks').update({ done: !currentDone }).eq('id', taskId)
   }, [])
 
-  return { clubs, loading, toggleClubTask }
+  const deleteMeeting = useCallback(async (clubId) => {
+    const club = clubs.find(c => c.id === clubId)
+    if (!club?.next_meeting) return
+    const whenText = club.next_meeting
+
+    // Optimistic clear so the card updates instantly
+    setClubs(prev => prev.map(c => c.id === clubId ? { ...c, next_meeting: null } : c))
+
+    await supabase.from('completed_meetings').insert({
+      club_id: clubId,
+      club_name: club.name,
+      when_text: whenText,
+    })
+    await supabase.from('clubs').update({ next_meeting: null }).eq('id', clubId)
+  }, [clubs])
+
+  return { clubs, loading, toggleClubTask, deleteMeeting }
 }
