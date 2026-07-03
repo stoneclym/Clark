@@ -8,13 +8,7 @@ import { supabase } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { normalizeClassLabel } from './lib/classNames.js'
-
-// ─── Calendar config ───────────────────────────────────────────
-const CAL_TODAY = new Date().getDate()
-const CAL_MONTH = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-const CAL_FIRST_DOW = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay()
-const CAL_DAYS = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
-const CAL_EVENTS = new Set([12, 18, 22, 25, 26, 30]) // populated from tasks in real use
+import CalendarCard from './CalendarCard.jsx'
 
 // ─── Shared UI primitives ──────────────────────────────────────
 function Label({ children }) {
@@ -256,53 +250,6 @@ function TasksCard({ tasks, toggleTask, filter, onFilter }) {
   )
 }
 
-// ─── Calendar Card ───────────────────────────────────────────────
-function CalendarCard() {
-  const cells = []
-  for (let i = 0; i < CAL_FIRST_DOW; i++) cells.push(null)
-  for (let d = 1; d <= CAL_DAYS; d++) cells.push(d)
-  while (cells.length % 7) cells.push(null)
-  const weeks = []
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
-
-  return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-        <Label>Calendar</Label>
-        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>{CAL_MONTH}</div>
-      </div>
-      <div style={{ display: 'flex', marginBottom: 4 }}>
-        {['S','M','T','W','T','F','S'].map((d, i) => (
-          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10.5, fontWeight: 600, color: 'var(--faint)' }}>{d}</div>
-        ))}
-      </div>
-      {weeks.map((week, wi) => (
-        <div key={wi} style={{ display: 'flex' }}>
-          {week.map((day, di) => {
-            const isToday = day === CAL_TODAY
-            const hasEvent = day != null && CAL_EVENTS.has(day) && !isToday
-            const isEvent = day != null && CAL_EVENTS.has(day)
-            return (
-              <div key={di} style={{ flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                {day != null && (
-                  <>
-                    <div style={isToday ? { width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600, background: 'var(--accent)', color: '#fff' }
-                      : isEvent ? { width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600, color: 'var(--accentText)' }
-                      : { width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>
-                      {day}
-                    </div>
-                    {hasEvent && <div style={{ position: 'absolute', bottom: 4, width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }}/>}
-                  </>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      ))}
-    </Card>
-  )
-}
-
 // ─── Grades Card ─────────────────────────────────────────────────
 const FORMAL_GRADE_NAMES = {
   'ib history of the americas': 'IB History of the Americas',
@@ -478,7 +425,7 @@ export default function TodayScreen({ filter, onFilter, onCloseQuick }) {
       <DashboardCard priorities={priorities} toggleTask={toggleTask} />
       <BrainDumpCard onParsed={refetch} />
       <TasksCard tasks={tasks} toggleTask={toggleTask} filter={filter} onFilter={onFilter} />
-      <CalendarCard />
+      <CalendarCard tasks={tasks} />
       <GradesCard />
       <InboxCard />
     </div>

@@ -1,7 +1,9 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.30.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildScheduleContext, describeScheduleContext } from '../_shared/scheduleContext.js'
-import { computeDeadline, TIME_PATTERN } from '../_shared/deadlineEngine.js'
+import { computeDeadline, inferKind, TIME_PATTERN } from '../_shared/deadlineEngine.js'
+
+const TASK_KINDS = ['assignment', 'test', 'event']
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
@@ -259,9 +261,13 @@ ${context}`
         const title = sentenceCaseTaskTitle(input.title) || 'Untitled task'
         const latestUserMessage = [...messages].reverse().find(message => message.role === 'user')?.content || ''
         const tag = normalizeClassLabel(input.tag)
+        const dueText = enrichDueText(input.due_date, `${input.title || ''} ${latestUserMessage}`)
+        const kind = TASK_KINDS.includes(String(input.kind))
+          ? String(input.kind)
+          : inferKind(String(input.title || ''), dueText)
         const deadline = computeDeadline({
-          kind: input.kind as string,
-          dueText: enrichDueText(input.due_date, `${input.title || ''} ${latestUserMessage}`),
+          kind,
+          dueText,
           className: tag || String(input.tag || ''),
           title: String(input.title || ''),
         }, settings)
@@ -269,6 +275,7 @@ ${context}`
           title,
           category: (input.category as string) || 'Personal',
           tag,
+          kind,
           ...deadline,
           priority: (input.priority as boolean) || false,
           priority_rank: input.priority ? (count || 0) + 1 : null,
