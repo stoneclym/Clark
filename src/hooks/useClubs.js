@@ -16,8 +16,12 @@ export function useClubs() {
 
   useEffect(() => {
     fetchClubs()
+    // Unique topic per hook instance — this hook mounts in both ClubsScreen
+    // and CalendarCard, and supabase-js returns the same channel object for a
+    // duplicate topic, which throws when the second mount adds callbacks to
+    // an already-subscribed channel.
     const channel = supabase
-      .channel('clubs-realtime')
+      .channel(`clubs-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clubs' }, fetchClubs)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'club_tasks' }, fetchClubs)
       .subscribe()
