@@ -1,5 +1,6 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.30.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { buildScheduleContext, describeScheduleContext, formatDate } from '../_shared/scheduleContext.js'
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
@@ -24,11 +25,11 @@ Deno.serve(async (req) => {
     supabase.from('settings').select('*').single(),
   ])
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const scheduleContext = buildScheduleContext(settings)
 
   const context = [
-    `Today is ${today}.`,
-    settings ? `Schedule type today: ${settings.first_day_type} day (calculated).` : '',
+    `Today is ${formatDate()}.`,
+    describeScheduleContext(scheduleContext),
     tasks?.length
       ? `Active tasks (priority order):\n${tasks.map((t: Record<string, unknown>) => `- ${t.title} (due: ${t.due_date}, source: ${t.source})`).join('\n')}`
       : 'No active tasks.',
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     max_tokens: 256,
     system: `You are Clark, a personal school dashboard assistant. Write a morning briefing for a high school senior managing IB classes, college applications, and four club leadership roles.
 
-Write exactly 3-5 sentences in a warm, calm, well-organized voice — like a trusted assistant, not a chatbot. Start with the day type (A or B) and the most time-sensitive items. End with an encouraging note about the day.
+Write exactly 3-5 sentences in a warm, calm, well-organized voice — like a trusted assistant, not a chatbot. If today is a school day, start with the day type (A or B); otherwise acknowledge it's not a school day. Then cover the most time-sensitive items. End with an encouraging note about the day. Trust the schedule facts you are given — they are computed, not guessed.
 
 Do NOT use bullet points, headers, or markdown. Plain prose only.`,
     messages: [{ role: 'user', content: context }],
