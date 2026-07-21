@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { supabase } from './lib/supabase.js'
 
 const GREETING = {
@@ -6,7 +8,7 @@ const GREETING = {
   text: "Hey — I'm Clark. Ask me anything about your schedule, tasks, grades, or inbox.",
 }
 
-export default function AskScreen({ onBack }) {
+export default function AskScreen({ visible, onBack }) {
   const [messages, setMessages] = useState([GREETING])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -14,8 +16,8 @@ export default function AskScreen({ onBack }) {
   const inputRef = useRef(null)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (visible) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, visible])
 
   const send = useCallback(async (text) => {
     const trimmed = text.trim()
@@ -63,7 +65,7 @@ export default function AskScreen({ onBack }) {
       compresses and the input stays above the keyboard automatically.
     */
     <div style={{
-      display: 'flex', flexDirection: 'column',
+      display: visible ? 'flex' : 'none', flexDirection: 'column',
       height: '100dvh',
       background: 'var(--bg)',
       position: 'fixed', inset: 0,
@@ -200,6 +202,41 @@ export default function AskScreen({ onBack }) {
   )
 }
 
+const markdownComponents = {
+  p: ({ node, ...props }) => <p style={{ margin: '0 0 8px', lineHeight: 1.55 }} {...props} />,
+  strong: ({ node, ...props }) => <strong style={{ fontWeight: 700 }} {...props} />,
+  em: ({ node, ...props }) => <em {...props} />,
+  ul: ({ node, ...props }) => <ul style={{ margin: '0 0 8px', paddingLeft: 20 }} {...props} />,
+  ol: ({ node, ...props }) => <ol style={{ margin: '0 0 8px', paddingLeft: 20 }} {...props} />,
+  li: ({ node, ...props }) => <li style={{ marginBottom: 3 }} {...props} />,
+  a: ({ node, ...props }) => <a style={{ color: 'var(--accentText)' }} target="_blank" rel="noopener noreferrer" {...props} />,
+  code: ({ node, inline, ...props }) => inline
+    ? <code style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 5, padding: '1px 5px', fontSize: '0.9em', fontFamily: 'ui-monospace, monospace' }} {...props} />
+    : <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.9em' }} {...props} />,
+  pre: ({ node, ...props }) => (
+    <pre style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', overflowX: 'auto', margin: '0 0 8px' }} {...props} />
+  ),
+  blockquote: ({ node, ...props }) => (
+    <blockquote style={{ margin: '0 0 8px', paddingLeft: 12, borderLeft: '3px solid var(--border)', color: 'var(--muted)' }} {...props} />
+  ),
+  h1: ({ node, ...props }) => <div style={{ fontSize: 17, fontWeight: 700, margin: '2px 0 8px' }} {...props} />,
+  h2: ({ node, ...props }) => <div style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 8px' }} {...props} />,
+  h3: ({ node, ...props }) => <div style={{ fontSize: 15, fontWeight: 700, margin: '2px 0 6px' }} {...props} />,
+  hr: ({ node, ...props }) => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '10px 0' }} {...props} />,
+  table: ({ node, ...props }) => (
+    <div style={{ overflowX: 'auto', margin: '0 0 8px' }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.95em' }} {...props} />
+    </div>
+  ),
+  thead: ({ node, ...props }) => <thead {...props} />,
+  th: ({ node, ...props }) => (
+    <th style={{ textAlign: 'left', padding: '5px 10px', borderBottom: '1.5px solid var(--borderStrong)', fontWeight: 700, whiteSpace: 'nowrap' }} {...props} />
+  ),
+  td: ({ node, ...props }) => (
+    <td style={{ padding: '5px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }} {...props} />
+  ),
+}
+
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user'
   return (
@@ -209,15 +246,21 @@ function ChatBubble({ msg }) {
         background: 'var(--accent)', color: '#fff',
         padding: '11px 15px', borderRadius: '18px 18px 5px 18px',
         fontSize: 14.5, lineHeight: 1.5,
+        whiteSpace: 'pre-wrap',
       } : {
         maxWidth: '88%',
         background: 'var(--cardAlt)', color: 'var(--text)',
         border: '1px solid var(--border)',
         padding: '12px 15px', borderRadius: '18px 18px 18px 5px',
-        fontSize: 14.5, lineHeight: 1.55,
-        whiteSpace: 'pre-wrap',
+        fontSize: 14.5,
       }}>
-        {msg.text}
+        {isUser
+          ? msg.text
+          : (
+            <div className="clark-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.text}</ReactMarkdown>
+            </div>
+          )}
       </div>
     </div>
   )

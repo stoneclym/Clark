@@ -211,9 +211,8 @@ export default function App() {
             <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'clubs' ? 'block' : 'none' }}>
               <ClubsScreen onCloseQuick={closeQuick} />
             </div>
-            {screen === 'ask' && (
-              <AskScreen onBack={() => setScreen('today')} />
-            )}
+            {/* Stays mounted so the conversation survives switching tabs */}
+            <AskScreen visible={screen === 'ask'} onBack={() => setScreen('today')} />
             {screen === 'settings' && (
               <SettingsScreen
                 dark={dark}
