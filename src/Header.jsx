@@ -2,24 +2,24 @@ const QUICK_LINKS = [
   {
     id: 'outlook',
     label: 'Outlook',
-    glyph: 'O',
-    tint: '#0F6CBD',
+    iconLight: '/icons/outlook-light.png',
+    iconDark: '/icons/outlook-dark.png',
     deepLink: 'ms-outlook://',
     webUrl: 'https://outlook.office.com/mail/',
   },
   {
     id: 'canvas',
     label: 'Canvas',
-    glyph: 'C',
-    tint: '#D64541',
+    iconLight: '/icons/canvas-light.png',
+    iconDark: '/icons/canvas-dark.png',
     deepLink: 'canvas-courses://',
     webUrl: 'https://nhcs.instructure.com',
   },
   {
     id: 'ic',
     label: 'Infinite Campus',
-    glyph: 'IC',
-    tint: '#3E8E5A',
+    iconLight: '/icons/ic-light.png',
+    iconDark: '/icons/ic-dark.png',
     deepLink: 'shortcuts://run-shortcut?name=Open%20Campus%20Student',
     webUrl: 'https://650.ncsis.gov/campus/portal/students/psu650nhcs.jsp',
   },
@@ -56,7 +56,7 @@ function openApp(deepLink, webUrl) {
   }, 1600)
 }
 
-export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
+export default function Header({ quickOpen, onToggleQuick, onOpenSettings, dark }) {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
@@ -126,12 +126,13 @@ export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
             }
             const cardContent = (
               <>
-                <div style={{
-                  width: 38, height: 38, borderRadius: 12,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "'Source Serif 4', Georgia, serif",
-                  fontSize: 14, fontWeight: 600, color: '#fff', background: ql.tint, flexShrink: 0,
-                }}>{ql.glyph}</div>
+                <img
+                  src={dark ? ql.iconDark : ql.iconLight}
+                  alt=""
+                  width={38}
+                  height={38}
+                  style={{ width: 38, height: 38, borderRadius: 12, flexShrink: 0, objectFit: 'cover' }}
+                />
                 <div style={{ fontSize: 11, fontWeight: 600, textAlign: 'center', lineHeight: 1.2, color: 'var(--text)' }}>{ql.label}</div>
               </>
             )

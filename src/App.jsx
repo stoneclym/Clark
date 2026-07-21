@@ -198,6 +198,7 @@ export default function App() {
             quickOpen={quickOpen}
             onToggleQuick={() => setQuickOpen(o => !o)}
             onOpenSettings={() => { setQuickOpen(false); setScreen('settings') }}
+            dark={dark}
           />
         )}
 
