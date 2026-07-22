@@ -3,6 +3,7 @@
 // and permits direct browser calls.
 const SCHOOL_LAT = 34.1946
 const SCHOOL_LON = -77.9086
+export const SCHOOL_LOCATION_LABEL = 'Wilmington, NC'
 
 const CACHE_KEY = 'clark_weather_cache'
 const REFRESH_MS = 60 * 60 * 1000 // refresh roughly hourly, not on every load

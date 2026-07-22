@@ -54,7 +54,7 @@ export default function CalendarCard({ tasks, onOpenCalendar }) {
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)' }}>
-      <div onClick={onOpenCalendar} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, cursor: 'pointer' }}>
+      <div onClick={onOpenCalendar} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', margin: '-8px 0 6px', cursor: 'pointer' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)' }}>
           Calendar
         </div>

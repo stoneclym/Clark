@@ -47,13 +47,18 @@ export default function TabBar({ screen, onNavigate }) {
   return (
     <div style={{
       position: 'sticky', bottom: 0, zIndex: 5,
-      background: 'var(--bg)',
-      borderTop: '1px solid var(--border)',
       display: 'flex', alignItems: 'center',
-      padding: '9px 14px 30px',
-      gap: 4,
+      padding: '0 14px 20px',
+      gap: 10,
+      pointerEvents: 'none',
     }}>
-      <div style={{ flex: 1, display: 'flex' }}>
+      <div style={{
+        flex: 1, display: 'flex', alignItems: 'center',
+        background: 'var(--card)', border: '1px solid var(--border)',
+        borderRadius: 26, padding: '9px 6px',
+        boxShadow: '0 10px 30px rgba(20,18,14,0.14)',
+        pointerEvents: 'auto',
+      }}>
         {TABS.map(tab => {
           const color = screen === tab.id ? 'var(--accent)' : 'var(--faint)'
           return (
@@ -61,8 +66,8 @@ export default function TabBar({ screen, onNavigate }) {
               key={tab.id}
               onClick={() => onNavigate(tab.id)}
               style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                cursor: 'pointer', color, background: 'none', border: 'none', padding: 0,
+                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                cursor: 'pointer', color, background: 'none', border: 'none', padding: '3px 0',
               }}
             >
               {tab.icon}
@@ -82,6 +87,7 @@ export default function TabBar({ screen, onNavigate }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 12px rgba(86,141,179,0.35)',
           border: 'none', cursor: 'pointer', padding: 0,
+          pointerEvents: 'auto',
         }}
       >
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">

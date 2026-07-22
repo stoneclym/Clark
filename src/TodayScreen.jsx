@@ -55,8 +55,13 @@ function BriefingSection({ briefing, generating, generate }) {
   const [maxHeight, setMaxHeight] = useState(0)
 
   useEffect(() => {
-    if (expanded && contentRef.current) setMaxHeight(contentRef.current.scrollHeight)
-    else setMaxHeight(0)
+    if (!expanded || !contentRef.current) { setMaxHeight(0); return }
+    setMaxHeight(contentRef.current.scrollHeight + 8)
+    // Source Serif 4 may still be swapping in when we first measure —
+    // re-measure once it's actually loaded so the last line doesn't clip.
+    document.fonts?.ready?.then(() => {
+      if (contentRef.current) setMaxHeight(contentRef.current.scrollHeight + 8)
+    })
   }, [expanded, briefing])
 
   const briefingText = briefing?.content || 'Tap the refresh button to generate your morning briefing.'
@@ -86,7 +91,7 @@ function BriefingSection({ briefing, generating, generate }) {
       )}
       <div style={{ overflow: 'hidden', maxHeight, opacity: expanded ? 1 : 0, transition: 'max-height 0.25s ease, opacity 0.2s ease' }}>
         <div ref={contentRef}>
-          <p style={{ margin: '8px 0 0', fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
+          <p style={{ margin: '8px 0 0', fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, fontWeight: 480, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
             {briefingText}
           </p>
         </div>
@@ -451,7 +456,7 @@ function InboxCard({ onOpenInbox }) {
 
   return (
     <Card>
-      <div onClick={() => onOpenInbox()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, cursor: 'pointer' }}>
+      <div onClick={() => onOpenInbox()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', margin: '-8px 0 -4px', cursor: 'pointer' }}>
         <Label>Inbox</Label>
       </div>
       {emails.length === 0 && (
