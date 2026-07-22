@@ -43,7 +43,7 @@ const TABS = [
   },
 ]
 
-const FAB_SIZE = 46
+const BAR_HEIGHT = 62
 
 export default function TabBar({ screen, onNavigate }) {
   return (
@@ -62,9 +62,9 @@ export default function TabBar({ screen, onNavigate }) {
           screen edge to the first icon, between every icon, and from the
           last icon to the screen edge all come out equal. */}
       <div style={{
-        flex: 4, display: 'flex', alignItems: 'center',
+        flex: 4, height: BAR_HEIGHT, display: 'flex', alignItems: 'center',
         background: 'var(--card)', border: '1px solid var(--border)',
-        borderRadius: 26, padding: '9px 0',
+        borderRadius: BAR_HEIGHT / 2,
         boxShadow: '0 18px 40px rgba(20,18,14,0.24), 0 2px 8px rgba(20,18,14,0.12)',
         pointerEvents: 'auto',
       }}>
@@ -92,7 +92,7 @@ export default function TabBar({ screen, onNavigate }) {
           onClick={() => onNavigate('ask')}
           aria-label="Ask Clark"
           style={{
-            flexShrink: 0, width: FAB_SIZE, height: FAB_SIZE, borderRadius: '50%',
+            flexShrink: 0, width: BAR_HEIGHT, height: BAR_HEIGHT, borderRadius: '50%',
             background: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 20px rgba(20,18,14,0.20), 0 4px 12px rgba(86,141,179,0.35)',
@@ -100,7 +100,7 @@ export default function TabBar({ screen, onNavigate }) {
             pointerEvents: 'auto',
           }}
         >
-          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-5.4A8 8 0 1 1 21 11.5z"/>
             <path d="M9.5 11h.01M13 11h.01M16.5 11h.01"/>
           </svg>
