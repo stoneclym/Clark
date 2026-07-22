@@ -4,14 +4,13 @@ import { useGrades } from './hooks/useGrades.js'
 import { useEmails } from './hooks/useEmails.js'
 import { useSchedule } from './hooks/useSchedule.js'
 import { useBriefing } from './hooks/useBriefing.js'
-import { supabase, invokeErrorMessage } from './lib/supabase.js'
+import { supabase } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { normalizeClassLabel, CLASS_TAG_ORDER } from './lib/classNames.js'
 import { timeOfDayLabel } from './lib/greeting.js'
 import CalendarCard from './CalendarCard.jsx'
-import { openApp } from './Header.jsx'
-import Sheet from './Sheet.jsx'
+import TopPills from './TopPills.jsx'
 
 // ─── Shared UI primitives ──────────────────────────────────────
 function Label({ children }) {
@@ -49,6 +48,53 @@ function displayTaskTag(tag) {
   return normalizeClassLabel(value) || ''
 }
 
+// ─── Briefing sub-card (nested inside DashboardCard) ─────────────
+function BriefingSection({ briefing, generating, generate }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentRef = useRef(null)
+  const [maxHeight, setMaxHeight] = useState(0)
+
+  useEffect(() => {
+    if (expanded && contentRef.current) setMaxHeight(contentRef.current.scrollHeight)
+    else setMaxHeight(0)
+  }, [expanded, briefing])
+
+  const briefingText = briefing?.content || 'Tap the refresh button to generate your morning briefing.'
+  const condensed = briefingText.split(/(?<=[.!?])\s+/)[0]
+
+  return (
+    <div style={{ marginTop: 14, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+      <div onClick={() => setExpanded(e => !e)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+        <Label>{timeOfDayLabel()}</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
+          {briefing && <span style={{ fontSize: 11 }}>{new Date(briefing.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
+          <button onClick={(e) => { e.stopPropagation(); generate() }} disabled={generating} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accentText)', background: 'none', border: 'none', padding: 0, opacity: generating ? 0.5 : 1 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: generating ? 'spin 1s linear infinite' : 'none' }}>
+              <path d="M20 11a8 8 0 1 0-1 6"/>
+              <path d="M20 4v5h-5"/>
+            </svg>
+          </button>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </div>
+      </div>
+      {!expanded && (
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {condensed}
+        </p>
+      )}
+      <div style={{ overflow: 'hidden', maxHeight, opacity: expanded ? 1 : 0, transition: 'max-height 0.25s ease, opacity 0.2s ease' }}>
+        <div ref={contentRef}>
+          <p style={{ margin: '8px 0 0', fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
+            {briefingText}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Dashboard Card ─────────────────────────────────────────────
 function DashboardCard({ priorities, toggleTask }) {
   const { dayType, currentPeriod, dateLabel } = useSchedule()
@@ -58,45 +104,28 @@ function DashboardCard({ priorities, toggleTask }) {
     ? { label: currentPeriod.status === 'now' ? `Now · ${currentPeriod.period}` : `Next · ${currentPeriod.period}`, name: currentPeriod.className, time: currentPeriod.remaining, next: currentPeriod.nextClass }
     : { label: 'No class right now', name: 'Free period', time: '', next: null }
 
-  const briefingText = briefing?.content || 'Good morning. Tap the refresh button to generate your morning briefing.'
-
   return (
     <Card>
       {/* Schedule strip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, background: 'var(--accentSoft)', color: 'var(--accentText)', flexShrink: 0 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>DAY</span>
-          <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 19, fontWeight: 600, lineHeight: 1 }}>{dayType || '—'}</span>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{periodDisplay.label}</div>
-          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 16, fontWeight: 500, marginTop: 2, color: 'var(--text)' }}>{periodDisplay.name}</div>
-        </div>
-        {periodDisplay.time && (
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accentText)', lineHeight: 1 }}>{periodDisplay.time}</div>
-            {periodDisplay.next && <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>til {periodDisplay.next}</div>}
+      <div style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, background: 'var(--accentSoft)', color: 'var(--accentText)', flexShrink: 0 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>DAY</span>
+            <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 19, fontWeight: 600, lineHeight: 1 }}>{dayType || '—'}</span>
           </div>
-        )}
-      </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{periodDisplay.label}</div>
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 16, fontWeight: 500, marginTop: 2, color: 'var(--text)' }}>{periodDisplay.name}</div>
+          </div>
+          {periodDisplay.time && (
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accentText)', lineHeight: 1 }}>{periodDisplay.time}</div>
+              {periodDisplay.next && <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>til {periodDisplay.next}</div>}
+            </div>
+          )}
+        </div>
 
-      {/* AI Briefing */}
-      <div style={{ marginTop: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Label>{timeOfDayLabel()}</Label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
-            {briefing && <span style={{ fontSize: 11 }}>{new Date(briefing.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
-            <button onClick={generate} disabled={generating} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accentText)', background: 'none', border: 'none', padding: 0, opacity: generating ? 0.5 : 1 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: generating ? 'spin 1s linear infinite' : 'none' }}>
-                <path d="M20 11a8 8 0 1 0-1 6"/>
-                <path d="M20 4v5h-5"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <p style={{ margin: 0, fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
-          {briefingText}
-        </p>
+        <BriefingSection briefing={briefing} generating={generating} generate={generate} />
       </div>
 
       {/* Priorities */}
@@ -416,184 +445,13 @@ function GradesCard() {
   )
 }
 
-// ─── Inbox Card ──────────────────────────────────────────────────
-function stripHtml(html) {
-  if (!html) return ''
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<(p|div|br|tr|li)\b[^>]*>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
-function EmailRow({ m, expanded, unread, draft, drafting, copied, onToggleExpand, onDraftReply, onCopyAndOpenOutlook, innerRef }) {
-  return (
-    <div ref={innerRef} onClick={() => onToggleExpand(m)} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accentSoft)', color: 'var(--accentText)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m.initials}</div>
-        {unread && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}
-        <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>{m.from_name}</div>
-        <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>{new Date(m.received_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-      </div>
-      <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 9, color: 'var(--text)' }}>{m.subject}</div>
-      <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, marginTop: 3 }}>{m.snippet}</div>
-      {expanded && (
-        <div style={{ marginTop: 11, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-          {stripHtml(m.full_content) || m.snippet}
-        </div>
-      )}
-      {draft && (
-        <div style={{ marginTop: 11, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-          {draft}
-        </div>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 11 }}>
-        <div onClick={(e) => { e.stopPropagation(); onDraftReply(m.id) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#fff', background: 'var(--accent)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer', opacity: drafting ? 0.6 : 1 }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>
-          {drafting ? 'Drafting…' : draft ? 'Hide draft' : 'Draft reply'}
-        </div>
-        {draft && (
-          <div
-            onClick={(e) => onCopyAndOpenOutlook(e, m)}
-            title={copied ? 'Copied!' : 'Copy & open in Outlook'}
-            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, color: copied ? '#fff' : 'var(--accentText)', background: copied ? 'var(--accent)' : 'var(--accentSoft)', borderRadius: 9, cursor: 'pointer' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function InboxSheetContent({ focusEmailId }) {
-  const { emails, loading: emailsLoading, draftReply } = useEmails()
-  const [drafts, setDrafts] = useState({})
-  const [loading, setLoading] = useState({})
-  const [syncing, setSyncing] = useState(false)
-  const [syncError, setSyncError] = useState(null)
-  const [expanded, setExpanded] = useState(() => focusEmailId ? { [focusEmailId]: true } : {})
-  const [readOverride, setReadOverride] = useState({})
-  const [copied, setCopied] = useState({})
-  const focusRef = useRef(null)
-
-  useEffect(() => {
-    if (focusEmailId && focusRef.current) {
-      focusRef.current.scrollIntoView({ block: 'start' })
-    }
-  }, [focusEmailId, emails.length])
-
-  const toggleExpand = (m) => {
-    setExpanded(e => ({ ...e, [m.id]: !e[m.id] }))
-    if (!m.is_read && !readOverride[m.id]) {
-      setReadOverride(r => ({ ...r, [m.id]: true }))
-      supabase.from('emails').update({ is_read: true }).eq('id', m.id).then(() => {})
-    }
-  }
-
-  const handleDraftReply = async (emailId) => {
-    if (drafts[emailId]) { setDrafts(d => ({ ...d, [emailId]: null })); return }
-    setLoading(l => ({ ...l, [emailId]: true }))
-    try {
-      const draft = await draftReply(emailId)
-      setDrafts(d => ({ ...d, [emailId]: draft }))
-    } finally {
-      setLoading(l => ({ ...l, [emailId]: false }))
-    }
-  }
-
-  const copyAndOpenOutlook = (e, m) => {
-    e.stopPropagation()
-    openApp('ms-outlook://', 'https://outlook.office.com/mail/')
-    navigator.clipboard.writeText(drafts[m.id] || '').then(() => {
-      setCopied(c => ({ ...c, [m.id]: true }))
-      setTimeout(() => setCopied(c => ({ ...c, [m.id]: false })), 2000)
-    }).catch(() => {})
-  }
-
-  const syncOutlook = async () => {
-    setSyncing(true)
-    setSyncError(null)
-    try {
-      const { data, error } = await supabase.functions.invoke('sync-outlook')
-      if (error) setSyncError(await invokeErrorMessage(error))
-      else if (data?.error) setSyncError(data.error)
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : 'Sync failed')
-    } finally {
-      setSyncing(false)
-    }
-  }
-
-  return (
-    <div style={{ padding: '0 20px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
-          Inbox
-        </div>
-        <button
-          onClick={syncOutlook}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 11, fontWeight: 600, color: 'var(--accentText)',
-            background: 'var(--accentSoft)', border: 'none', borderRadius: 7,
-            padding: '4px 9px', cursor: syncing ? 'default' : 'pointer',
-            fontFamily: 'inherit', opacity: syncing ? 0.6 : 1,
-          }}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }}>
-            <path d="M23 4v6h-6M1 20v-6h6"/>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-          </svg>
-          {syncing ? 'Syncing…' : 'Sync Outlook'}
-        </button>
-      </div>
-      {syncError && (
-        <div style={{ fontSize: 11.5, color: '#C0392B', background: 'rgba(192,57,43,0.08)', borderRadius: 8, padding: '6px 10px', marginTop: 8 }}>
-          {syncError}
-        </div>
-      )}
-      {!emailsLoading && emails.length === 0 && (
-        <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--faint)' }}>
-          No emails yet. Tap Sync Outlook to check your inbox.
-        </div>
-      )}
-      {emails.map(m => (
-        <EmailRow
-          key={m.id}
-          m={m}
-          innerRef={m.id === focusEmailId ? focusRef : undefined}
-          expanded={!!expanded[m.id]}
-          unread={!m.is_read && !readOverride[m.id]}
-          draft={drafts[m.id]}
-          drafting={!!loading[m.id]}
-          copied={!!copied[m.id]}
-          onToggleExpand={toggleExpand}
-          onDraftReply={handleDraftReply}
-          onCopyAndOpenOutlook={copyAndOpenOutlook}
-        />
-      ))}
-    </div>
-  )
-}
-
-function InboxCard() {
+// ─── Inbox Card (Today preview — full inbox now lives in the Inbox tab) ──
+function InboxCard({ onOpenInbox }) {
   const { emails } = useEmails()
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [focusEmailId, setFocusEmailId] = useState(null)
-
-  const openSheet = (emailId = null) => {
-    setFocusEmailId(emailId)
-    setSheetOpen(true)
-  }
 
   return (
     <Card>
-      <div onClick={() => openSheet()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, cursor: 'pointer' }}>
+      <div onClick={() => onOpenInbox()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, cursor: 'pointer' }}>
         <Label>Inbox</Label>
       </div>
       {emails.length === 0 && (
@@ -602,7 +460,7 @@ function InboxCard() {
         </div>
       )}
       {emails.slice(0, 3).map(m => (
-        <div key={m.id} onClick={(e) => { e.stopPropagation(); openSheet(m.id) }} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+        <div key={m.id} onClick={(e) => { e.stopPropagation(); onOpenInbox(m.id) }} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accentSoft)', color: 'var(--accentText)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m.initials}</div>
             {!m.is_read && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}
@@ -613,26 +471,23 @@ function InboxCard() {
           <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, marginTop: 3 }}>{m.snippet}</div>
         </div>
       ))}
-
-      <Sheet variant="full" open={sheetOpen} onClose={() => setSheetOpen(false)} ariaLabel="Inbox">
-        {sheetOpen && <InboxSheetContent focusEmailId={focusEmailId} />}
-      </Sheet>
     </Card>
   )
 }
 
 // ─── Screen ──────────────────────────────────────────────────────
-export default function TodayScreen({ filter, onFilter, onCloseQuick }) {
+export default function TodayScreen({ filter, onFilter, onOpenCalendar, onOpenInbox }) {
   const { tasks, priorities, toggleTask, refetch } = useTasks()
 
   return (
-    <div onClick={onCloseQuick} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
+      <TopPills />
       <DashboardCard priorities={priorities} toggleTask={toggleTask} />
       <BrainDumpCard onParsed={refetch} />
       <TasksCard tasks={tasks} toggleTask={toggleTask} filter={filter} onFilter={onFilter} />
-      <CalendarCard tasks={tasks} />
+      <CalendarCard tasks={tasks} onOpenCalendar={onOpenCalendar} />
       <GradesCard />
-      <InboxCard />
+      <InboxCard onOpenInbox={onOpenInbox} />
     </div>
   )
 }

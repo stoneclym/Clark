@@ -1,18 +1,18 @@
 import { useClubs } from './hooks/useClubs.js'
 
-export default function ClubsScreen({ onCloseQuick }) {
+export default function ClubsScreen() {
   const { clubs, loading, toggleClubTask, deleteMeeting } = useClubs()
 
   if (loading) {
     return (
-      <div onClick={onCloseQuick} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontSize: 14, color: 'var(--muted)' }}>Loading clubs…</div>
       </div>
     )
   }
 
   return (
-    <div onClick={onCloseQuick} style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '2px 2px 0' }}>
         <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>
           Clubs

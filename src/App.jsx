@@ -3,6 +3,8 @@ import Header from './Header.jsx'
 import TabBar from './TabBar.jsx'
 import TodayScreen from './TodayScreen.jsx'
 import ClubsScreen from './ClubsScreen.jsx'
+import CalendarScreen from './CalendarScreen.jsx'
+import InboxScreen from './InboxScreen.jsx'
 import AskScreen from './AskScreen.jsx'
 import SettingsScreen from './SettingsScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
@@ -55,13 +57,15 @@ export default function App() {
   const [screen, setScreen] = useState('today')
   const [dark, setDark] = useState(systemPrefersDark)
   const [filter, setFilter] = useState('All')
-  const [quickOpen, setQuickOpen] = useState(false)
+  const [focusEmail, setFocusEmail] = useState(null) // { id, token } | null
 
   // Auth state: null=checking, false=locked, true=unlocked
   const [authed, setAuthed] = useState(null)
   const [oauthMessage, setOauthMessage] = useState(null)
   const todayScrollRef = useRef(null)
   const clubsScrollRef = useRef(null)
+  const calendarScrollRef = useRef(null)
+  const inboxScrollRef = useRef(null)
 
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)')
@@ -133,6 +137,16 @@ export default function App() {
     setAuthed(false)
   }, [])
 
+  // Navigating to the Inbox tab with a specific email in mind — token makes
+  // re-tapping the same preview twice still trigger a fresh scroll, since
+  // React would otherwise bail out of an effect keyed on an unchanged id.
+  const openInbox = useCallback((emailId = null) => {
+    setFocusEmail(emailId ? { id: emailId, token: Date.now() } : null)
+    setScreen('inbox')
+  }, [])
+
+  const openCalendar = useCallback(() => setScreen('calendar'), [])
+
   const base = dark ? DARK : LIGHT
   const accentText = dark
     ? 'color-mix(in srgb, #568DB3 70%, #ffffff 30%)'
@@ -154,10 +168,6 @@ export default function App() {
     background: base.bg,
     color: base.text,
   }
-
-  const closeQuick = useCallback(() => {
-    if (quickOpen) setQuickOpen(false)
-  }, [quickOpen])
 
   const showChrome = screen !== 'setup' && screen !== 'ask' && screen !== 'settings'
 
@@ -204,22 +214,28 @@ export default function App() {
         )}
         {showChrome && (
           <Header
-            quickOpen={quickOpen}
-            onToggleQuick={() => setQuickOpen(o => !o)}
-            onOpenSettings={() => { setQuickOpen(false); setScreen('settings') }}
+            onOpenSettings={() => setScreen('settings')}
             onLock={handleLock}
-            dark={dark}
           />
         )}
 
         <ErrorBoundary>
-          {/* Relative container — today/clubs stay mounted in their own scroll layers */}
+          {/* Relative container — all four tabs stay mounted in their own
+              scroll layers, so switching tabs only toggles visibility:
+              drafts, scroll position, expand/collapse state, etc. all
+              survive navigating away and back. */}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             <div ref={todayScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'today' ? 'block' : 'none' }}>
-              <TodayScreen filter={filter} onFilter={setFilter} onCloseQuick={closeQuick} />
+              <TodayScreen filter={filter} onFilter={setFilter} onOpenCalendar={openCalendar} onOpenInbox={openInbox} />
             </div>
             <div ref={clubsScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'clubs' ? 'block' : 'none' }}>
-              <ClubsScreen onCloseQuick={closeQuick} />
+              <ClubsScreen />
+            </div>
+            <div ref={calendarScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'calendar' ? 'block' : 'none' }}>
+              <CalendarScreen />
+            </div>
+            <div ref={inboxScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'inbox' ? 'block' : 'none' }}>
+              <InboxScreen focusEmail={focusEmail} />
             </div>
             {/* Stays mounted so the conversation survives switching tabs */}
             <AskScreen visible={screen === 'ask'} onBack={() => setScreen('today')} />
@@ -237,8 +253,8 @@ export default function App() {
         {showChrome && (
           <TabBar screen={screen} onNavigate={(next) => {
             if (next === screen) {
-              const ref = next === 'today' ? todayScrollRef : next === 'clubs' ? clubsScrollRef : null
-              ref?.current?.scrollTo({ top: 0, behavior: 'smooth' })
+              const refs = { today: todayScrollRef, clubs: clubsScrollRef, calendar: calendarScrollRef, inbox: inboxScrollRef }
+              refs[next]?.current?.scrollTo({ top: 0, behavior: 'smooth' })
             } else {
               setScreen(next)
             }

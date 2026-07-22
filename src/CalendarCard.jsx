@@ -4,7 +4,6 @@ import { useSchedule } from './hooks/useSchedule.js'
 import { buildMonthData, monthGrid, dayDots, todayISO } from './lib/calendar.js'
 import Sheet from './Sheet.jsx'
 import { DayAgenda } from './calendarShared.jsx'
-import CalendarSheet from './CalendarSheet.jsx'
 
 const SWIPE_THRESHOLD = 48
 
@@ -13,12 +12,11 @@ function clarkYearMonth() {
   return { year: y, monthIndex: m - 1 }
 }
 
-export default function CalendarCard({ tasks }) {
+export default function CalendarCard({ tasks, onOpenCalendar }) {
   const { clubs } = useClubs()
   const { settings } = useSchedule()
   const [{ year, monthIndex }, setMonth] = useState(clarkYearMonth)
   const [selectedISO, setSelectedISO] = useState(null)
-  const [fullOpen, setFullOpen] = useState(false)
   const touch = useRef(null)
 
   const today = todayISO()
@@ -56,7 +54,7 @@ export default function CalendarCard({ tasks }) {
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)' }}>
-      <div onClick={() => setFullOpen(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, cursor: 'pointer' }}>
+      <div onClick={onOpenCalendar} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, cursor: 'pointer' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)' }}>
           Calendar
         </div>
@@ -108,12 +106,6 @@ export default function CalendarCard({ tasks }) {
       <Sheet variant="peek" open={!!selectedISO} onClose={() => setSelectedISO(null)} ariaLabel="Day details">
         {selectedISO && (
           <DayAgenda iso={selectedISO} entry={monthData.get(selectedISO)} today={today} />
-        )}
-      </Sheet>
-
-      <Sheet variant="full" open={fullOpen} onClose={() => setFullOpen(false)} ariaLabel="Full calendar">
-        {fullOpen && (
-          <CalendarSheet initialYear={year} initialMonthIndex={monthIndex} tasks={tasks} clubs={clubs} settings={settings} />
         )}
       </Sheet>
     </div>
