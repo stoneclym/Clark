@@ -254,7 +254,6 @@ export default function App() {
             <AskScreen visible={screen === 'ask'} onBack={() => setScreen('today')} />
             {screen === 'settings' && (
               <SettingsScreen
-                dark={dark}
                 onBack={() => setScreen('today')}
               />
             )}

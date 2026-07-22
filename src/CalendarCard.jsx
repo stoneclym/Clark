@@ -1,9 +1,10 @@
 import { useState, useMemo, useRef } from 'react'
 import { useClubs } from './hooks/useClubs.js'
 import { useSchedule } from './hooks/useSchedule.js'
-import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
-import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
-import { buildMonthData, monthGrid, dayDots, taskKind, todayISO, DOT_COLORS } from './lib/calendar.js'
+import { buildMonthData, monthGrid, dayDots, todayISO } from './lib/calendar.js'
+import Sheet from './Sheet.jsx'
+import { DayAgenda } from './calendarShared.jsx'
+import CalendarSheet from './CalendarSheet.jsx'
 
 const SWIPE_THRESHOLD = 48
 
@@ -17,6 +18,7 @@ export default function CalendarCard({ tasks }) {
   const { settings } = useSchedule()
   const [{ year, monthIndex }, setMonth] = useState(clarkYearMonth)
   const [selectedISO, setSelectedISO] = useState(null)
+  const [fullOpen, setFullOpen] = useState(false)
   const touch = useRef(null)
 
   const today = todayISO()
@@ -54,11 +56,11 @@ export default function CalendarCard({ tasks }) {
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div onClick={() => setFullOpen(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, cursor: 'pointer' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)' }}>
           Calendar
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <MonthArrow dir="prev" onClick={() => shiftMonth(-1)} />
           <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, color: 'var(--text)', minWidth: 118, textAlign: 'center' }}>
             {monthLabel}
@@ -103,19 +105,22 @@ export default function CalendarCard({ tasks }) {
         ))}
       </div>
 
-      {selectedISO && (
-        <DaySheet
-          iso={selectedISO}
-          entry={monthData.get(selectedISO)}
-          today={today}
-          onClose={() => setSelectedISO(null)}
-        />
-      )}
+      <Sheet variant="peek" open={!!selectedISO} onClose={() => setSelectedISO(null)} ariaLabel="Day details">
+        {selectedISO && (
+          <DayAgenda iso={selectedISO} entry={monthData.get(selectedISO)} today={today} />
+        )}
+      </Sheet>
+
+      <Sheet variant="full" open={fullOpen} onClose={() => setFullOpen(false)} ariaLabel="Full calendar">
+        {fullOpen && (
+          <CalendarSheet initialYear={year} initialMonthIndex={monthIndex} tasks={tasks} clubs={clubs} settings={settings} />
+        )}
+      </Sheet>
     </div>
   )
 }
 
-function MonthArrow({ dir, onClick }) {
+export function MonthArrow({ dir, onClick }) {
   return (
     <button
       onClick={onClick}
@@ -134,146 +139,4 @@ function MonthArrow({ dir, onClick }) {
   )
 }
 
-// ─── Day detail bottom sheet ─────────────────────────────────────
-function DaySheet({ iso, entry, today, onClose }) {
-  const touch = useRef(null)
 
-  const dateLabel = new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-US', {
-    timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric',
-  })
-
-  const meetings = entry?.meetings ?? []
-  const tests = entry?.tests ?? []
-  const others = entry?.others ?? []
-  const noSchool = entry?.dots.noSchool
-  const empty = !meetings.length && !tests.length && !others.length
-
-  const onTouchStart = (e) => { touch.current = e.touches[0].clientY }
-  const onTouchEnd = (e) => {
-    if (touch.current == null) return
-    const dy = e.changedTouches[0].clientY - touch.current
-    touch.current = null
-    if (dy > SWIPE_THRESHOLD) onClose()
-  }
-
-  return (
-    <div
-      onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 40, background: 'rgba(20,18,14,0.35)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        style={{
-          background: 'var(--card)', borderRadius: '22px 22px 0 0',
-          padding: '10px 20px 30px', maxHeight: '70vh', overflowY: 'auto',
-          boxShadow: '0 -6px 30px rgba(20,18,14,0.18)',
-        }}
-      >
-        <button
-          onClick={onClose}
-          aria-label="Dismiss"
-          style={{ display: 'flex', justifyContent: 'center', width: '100%', background: 'none', border: 'none', padding: '4px 0 10px', cursor: 'pointer', color: 'var(--faint)' }}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 18, fontWeight: 600, color: 'var(--text)' }}>
-            {dateLabel}
-          </div>
-          {noSchool && (
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: 'rgba(154,86,179,0.14)', color: DOT_COLORS.noSchool, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-              No school
-            </span>
-          )}
-        </div>
-
-        {empty ? (
-          <div style={{ fontSize: 13.5, color: 'var(--faint)', padding: '18px 0 8px', textAlign: 'center' }}>
-            Nothing scheduled this day
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {meetings.length > 0 && (
-              <SheetBlock title="Meetings" color={DOT_COLORS.meeting}>
-                {meetings.map((m, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
-                    <Dot color={DOT_COLORS.meeting} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{m.clubName}</div>
-                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 1 }}>{m.when}</div>
-                    </div>
-                  </div>
-                ))}
-              </SheetBlock>
-            )}
-
-            {tests.length > 0 && (
-              <SheetBlock title="Tests" color={DOT_COLORS.due}>
-                {tests.map(task => <SheetTask key={task.id} task={task} today={today} iso={iso} />)}
-              </SheetBlock>
-            )}
-
-            {others.length > 0 && (
-              <SheetBlock title="Due & to do" color={DOT_COLORS.due}>
-                {others.map(task => <SheetTask key={task.id} task={task} today={today} iso={iso} />)}
-              </SheetBlock>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function SheetBlock({ title, children }) {
-  return (
-    <div>
-      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 4 }}>
-        {title}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column' }}>{children}</div>
-    </div>
-  )
-}
-
-function Dot({ color }) {
-  return <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
-}
-
-function SheetTask({ task, today, iso }) {
-  const dateInfo = getTaskDateInfo(task)
-  const overdue = iso < today
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
-      <Dot color={overdue ? DOT_COLORS.overdue : DOT_COLORS.due} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>
-          {sentenceCaseTaskTitle(task.title)}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-          <span style={{ fontSize: 11.5, color: overdue ? OVERDUE_COLOR : 'var(--muted)' }}>
-            {overdue ? `Overdue · ${dateInfo.label}` : dateInfo.label}
-          </span>
-          {task.tag && (
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>
-              {task.tag}
-            </span>
-          )}
-          {taskKind(task) === 'test' && (
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'rgba(86,141,179,0.12)', color: 'var(--accentText)' }}>
-              Test
-            </span>
-          )}
-        </div>
-      </div>
-      {task.priority && (
-        <span style={{ fontSize: 12, color: 'var(--accentText)', flexShrink: 0 }}>★</span>
-      )}
-    </div>
-  )
-}

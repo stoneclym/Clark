@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { redirectToMicrosoftAuthorize } from './lib/microsoftAuth.js'
+import ConfirmDialog from './ConfirmDialog.jsx'
 
 function relativeTimestamp(value) {
   if (!value) return ''
@@ -10,6 +11,17 @@ function relativeTimestamp(value) {
 }
 
 function ArchiveSection({ title, items, loading, expanded, onToggle, renderItem, emptyText }) {
+  const contentRef = useRef(null)
+  const [maxHeight, setMaxHeight] = useState(0)
+
+  useEffect(() => {
+    if (expanded && contentRef.current) {
+      setMaxHeight(contentRef.current.scrollHeight)
+    } else {
+      setMaxHeight(0)
+    }
+  }, [expanded, items, loading])
+
   return (
     <div>
       <button
@@ -27,23 +39,25 @@ function ArchiveSection({ title, items, loading, expanded, onToggle, renderItem,
         </svg>
       </button>
 
-      {expanded && (
-        loading ? (
-          <div style={{ fontSize: 13, color: 'var(--faint)', padding: '16px 0' }}>Loading…</div>
-        ) : items.length === 0 ? (
-          <div style={{
-            background: 'var(--card)', border: '1px solid var(--border)',
-            borderRadius: 16, padding: '24px 18px', textAlign: 'center',
-            fontSize: 13.5, color: 'var(--faint)',
-          }}>
-            {emptyText}
-          </div>
-        ) : (
-          <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-            {items.map((item, i) => renderItem(item, i))}
-          </div>
-        )
-      )}
+      <div style={{ overflow: 'hidden', maxHeight, opacity: expanded ? 1 : 0, transition: 'max-height 0.28s ease, opacity 0.22s ease' }}>
+        <div ref={contentRef}>
+          {loading ? (
+            <div style={{ fontSize: 13, color: 'var(--faint)', padding: '16px 0' }}>Loading…</div>
+          ) : items.length === 0 ? (
+            <div style={{
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 16, padding: '24px 18px', textAlign: 'center',
+              fontSize: 13.5, color: 'var(--faint)',
+            }}>
+              {emptyText}
+            </div>
+          ) : (
+            <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+              {items.map((item, i) => renderItem(item, i))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -99,13 +113,14 @@ function ArchiveRow({ isFirst, label, sublabel, onRestore, onDelete }) {
   )
 }
 
-export default function SettingsScreen({ dark, onBack }) {
+export default function SettingsScreen({ onBack }) {
   const [completedTasks, setCompletedTasks] = useState([])
   const [completedMeetings, setCompletedMeetings] = useState([])
   const [completedClubTasks, setCompletedClubTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [outlookConnecting, setOutlookConnecting] = useState(false)
   const [expanded, setExpanded] = useState({ tasks: true, meetings: false, clubTasks: false })
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
 
   const [msSettingsId, setMsSettingsId] = useState(null)
   const [msAccountEmail, setMsAccountEmail] = useState(null)
@@ -144,6 +159,7 @@ export default function SettingsScreen({ dark, onBack }) {
 
   const disconnectMicrosoft = async () => {
     if (!msSettingsId) return
+    setConfirmingDisconnect(false)
     setMsStatus(null)
     await supabase.from('settings').update({
       microsoft_access_token: null,
@@ -241,54 +257,6 @@ export default function SettingsScreen({ dark, onBack }) {
 
       <div style={{ padding: '20px 20px 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-        {/* Appearance */}
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 12 }}>
-            Appearance
-          </div>
-          <div style={{
-            background: 'var(--card)', border: '1px solid var(--border)',
-            borderRadius: 16, overflow: 'hidden',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 34, height: 34, borderRadius: 10,
-                  background: dark ? 'rgba(86,141,179,0.15)' : 'rgba(86,141,179,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {dark ? (
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accentText)" strokeWidth="1.8" strokeLinecap="round">
-                      <circle cx="12" cy="12" r="4"/>
-                      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19"/>
-                    </svg>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M21 12.9A9 9 0 1 1 11.1 3 7 7 0 0 0 21 12.9Z" stroke="var(--accentText)" strokeWidth="1.7" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--text)' }}>
-                    System appearance
-                  </div>
-                  <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 1 }}>
-                    Currently {dark ? 'dark' : 'light'} based on this device
-                  </div>
-                </div>
-              </div>
-              <div style={{
-                padding: '5px 10px', borderRadius: 999,
-                background: 'var(--accentSoft)', color: 'var(--accentText)',
-                fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-                textTransform: 'uppercase', flexShrink: 0,
-              }}>
-                Auto
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Microsoft (Outlook + To Do) */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 12 }}>
@@ -349,7 +317,7 @@ export default function SettingsScreen({ dark, onBack }) {
                   {msSyncing ? 'Syncing…' : 'Sync now'}
                 </button>
                 <button
-                  onClick={disconnectMicrosoft}
+                  onClick={() => setConfirmingDisconnect(true)}
                   style={{
                     padding: '8px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600,
                     background: 'rgba(192,57,43,0.08)', color: '#C0392B',
@@ -439,6 +407,15 @@ export default function SettingsScreen({ dark, onBack }) {
         />
 
       </div>
+
+      <ConfirmDialog
+        open={confirmingDisconnect}
+        title="Disconnect Outlook?"
+        body="Clark will stop syncing your inbox and reminders until you reconnect."
+        confirmLabel="Disconnect"
+        onCancel={() => setConfirmingDisconnect(false)}
+        onConfirm={disconnectMicrosoft}
+      />
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { timeOfDayGreeting } from './lib/greeting.js'
 function makeGreeting() {
   return {
     id: 'g0', role: 'clark',
-    text: `${timeOfDayGreeting()} — I'm Clark. Ask me anything about your schedule, tasks, grades, or inbox.`,
+    text: `${timeOfDayGreeting()}, Greyson. Ask me anything.`,
   }
 }
 
@@ -106,18 +106,12 @@ export default function AskScreen({ visible, onBack }) {
               <path d="M9.5 11h.01M13 11h.01M16.5 11h.01"/>
             </svg>
           </div>
-          <div>
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 18, fontWeight: 600, lineHeight: 1, color: 'var(--text)' }}>
-              Ask Clark
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}/>
-              Sees your schedule, tasks &amp; inbox
-            </div>
+          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 18, fontWeight: 600, lineHeight: 1, color: 'var(--text)' }}>
+            Ask Clark
           </div>
         </div>
         <button
-          onClick={() => setMessages([GREETING])}
+          onClick={() => setMessages([makeGreeting()])}
           style={{
             padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)',
             background: 'transparent', color: 'var(--muted)', fontSize: 12,
@@ -171,7 +165,7 @@ export default function AskScreen({ visible, onBack }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Clark anything… (use mic on keyboard for voice)"
+            placeholder="Ask Clark anything"
             rows={1}
             style={{
               flex: 1, fontSize: 14.5, fontFamily: 'inherit',
