@@ -72,10 +72,26 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    // Handle Microsoft OAuth callback (?code=...&state=outlook_auth)
+    // Handle Microsoft OAuth callback (?code=...&state=outlook_auth on success,
+    // or ?error=...&error_description=...&state=outlook_auth if Microsoft itself
+    // rejected the request — e.g. account-type or redirect-URI mismatch — before
+    // ever redeeming an authorization code).
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const state = params.get('state')
+    const oauthError = params.get('error')
+
+    if (oauthError && state === 'outlook_auth') {
+      window.history.replaceState({}, '', window.location.pathname)
+      setAuthed(true)
+      setScreen('settings')
+      setOauthMessage({
+        type: 'error',
+        text: `Microsoft sign-in failed: ${params.get('error_description') || oauthError}`,
+      })
+      return
+    }
+
     if (code && state === 'outlook_auth') {
       window.history.replaceState({}, '', window.location.pathname)
       setAuthed(true)
