@@ -139,25 +139,13 @@ export default function SettingsScreen({ onBack }) {
   const [dragX, setDragX] = useState(0)
   const [dragging, setDragging] = useState(false)
   const swipe = useRef(null) // { x, y, t, active }
+  const scrollRef = useRef(null)
 
   const onSwipeTouchStart = (e) => {
     const x = e.touches[0].clientX
     if (x > EDGE_ZONE) return
     swipe.current = { x, y: e.touches[0].clientY, t: Date.now(), active: true }
     setDragging(true)
-  }
-  const onSwipeTouchMove = (e) => {
-    if (!swipe.current?.active || reducedMotion) return
-    const dx = e.touches[0].clientX - swipe.current.x
-    const dy = e.touches[0].clientY - swipe.current.y
-    if (Math.abs(dy) > Math.abs(dx) * 1.5) {
-      // Looks like a vertical scroll, not a back-swipe — bail out.
-      swipe.current.active = false
-      setDragging(false)
-      setDragX(0)
-      return
-    }
-    if (dx > 0) setDragX(dx)
   }
   const onSwipeTouchEnd = (e) => {
     setDragging(false)
@@ -172,6 +160,32 @@ export default function SettingsScreen({ onBack }) {
       setDragX(0)
     }
   }
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    // Native (non-passive) listener so preventDefault can actually stop
+    // the page from also scrolling vertically once this is confirmed to
+    // be a horizontal back-swipe — React's onTouchMove is passive and
+    // can't do that.
+    const onMove = (e) => {
+      if (!swipe.current?.active || reducedMotion) return
+      const dx = e.touches[0].clientX - swipe.current.x
+      const dy = e.touches[0].clientY - swipe.current.y
+      if (Math.abs(dy) > Math.abs(dx) * 1.5) {
+        swipe.current.active = false
+        setDragging(false)
+        setDragX(0)
+        return
+      }
+      if (dx > 0) {
+        e.preventDefault()
+        setDragX(dx)
+      }
+    }
+    el.addEventListener('touchmove', onMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onMove)
+  }, [reducedMotion])
 
   const registerFaceId = async () => {
     setBiometricBusy(true)
@@ -302,8 +316,8 @@ export default function SettingsScreen({ onBack }) {
 
   return (
     <div
+      ref={scrollRef}
       onTouchStart={onSwipeTouchStart}
-      onTouchMove={onSwipeTouchMove}
       onTouchEnd={onSwipeTouchEnd}
       style={{
         flex: 1, overflowY: 'auto', background: 'var(--bg)',

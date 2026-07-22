@@ -82,14 +82,14 @@ button {
    sheets, the apps dropdown) — content cards stay flat/solid. */
 .glass {
   background: var(--glassSurface);
-  -webkit-backdrop-filter: blur(14px) saturate(170%);
-  backdrop-filter: blur(14px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(210%);
+  backdrop-filter: blur(16px) saturate(210%);
   border: 1px solid var(--glassBorder);
 }
 .glass-accent {
   background: var(--glassAccent);
-  -webkit-backdrop-filter: blur(14px) saturate(170%);
-  backdrop-filter: blur(14px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(210%);
+  backdrop-filter: blur(16px) saturate(210%);
   border: 1px solid var(--glassBorder);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

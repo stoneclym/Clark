@@ -68,20 +68,28 @@ export default function Sheet({ open, onClose, variant = 'peek', children, ariaL
 
   return (
     <div
-      onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 40,
-        background: entered ? 'rgba(20,18,14,0.35)' : 'rgba(20,18,14,0)',
-        transition: 'background 0.25s ease',
         display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-        pointerEvents: entered ? 'auto' : 'none',
       }}
     >
+      {/* A separate sibling above the panel — not a shared parent — so its
+          dark tint never sits directly behind the glass panel. Stacking
+          them (parent dims, child is also glass) would make the panel's
+          own backdrop-filter sample that darkness and look dimmed too. */}
+      <div
+        onClick={onClose}
+        style={{
+          flex: 1,
+          background: entered ? 'rgba(20,18,14,0.35)' : 'rgba(20,18,14,0)',
+          transition: 'background 0.25s ease',
+          pointerEvents: entered ? 'auto' : 'none',
+        }}
+      />
       <div
         role="dialog"
         aria-label={ariaLabel}
         className="glass"
-        onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -97,6 +105,10 @@ export default function Sheet({ open, onClose, variant = 'peek', children, ariaL
           overflow: 'hidden',
           boxShadow: '0 -6px 30px rgba(20,18,14,0.18)',
           opacity: reducedMotion ? (entered ? 1 : 0) : 1,
+          // opacity:0 alone doesn't drop hit-testing — only relevant under
+          // reduced motion, where there's no off-screen transform to move
+          // the panel's hit box out of the way when "closed".
+          pointerEvents: reducedMotion && !entered ? 'none' : 'auto',
           transform: reducedMotion ? 'none' : (entered ? `translateY(${dragY}px)` : 'translateY(100%)'),
           transition: reducedMotion
             ? 'opacity 120ms linear'

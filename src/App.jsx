@@ -160,10 +160,13 @@ export default function App() {
     : 'color-mix(in srgb, #568DB3 80%, #000000 20%)'
   const accentSoft = dark ? 'rgba(86,141,179,0.20)' : 'rgba(86,141,179,0.13)'
   // Liquid-glass tokens for the nav/chrome layer only (tab bar, FAB,
-  // sheets, apps dropdown) — content cards never reference these.
-  const glassSurface = dark ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)'
+  // sheets, apps dropdown) — content cards never reference these. Same
+  // alpha in both modes ("even") — higher transparency + a stronger
+  // saturate() filter (see .glass/.glass-accent in App.css) so the color
+  // reads as vivid glass rather than a pale, near-opaque tint.
+  const glassSurface = dark ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.10)'
   const glassBorder = 'rgba(255,255,255,0.35)'
-  const glassAccent = dark ? 'rgba(86,141,179,0.6)' : 'rgba(86,141,179,0.55)'
+  const glassAccent = 'rgba(86,141,179,0.32)'
 
   const themeStyle = {
     '--bg': base.bg,
