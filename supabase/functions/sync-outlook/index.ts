@@ -77,6 +77,7 @@ Deno.serve(async (req) => {
       subject: m.subject as string || '(no subject)',
       snippet: (m.bodyPreview as string || '').slice(0, 300),
       full_content: body?.content || null,
+      is_read: (m.isRead as boolean) ?? false,
     }
   })
 

@@ -337,12 +337,35 @@ function GradesCard() {
 }
 
 // ─── Inbox Card ──────────────────────────────────────────────────
+function stripHtml(html) {
+  if (!html) return ''
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<(p|div|br|tr|li)\b[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 function InboxCard() {
-  const { emails, draftReply } = useEmails()
+  const { emails, loading: emailsLoading, draftReply } = useEmails()
   const [drafts, setDrafts] = useState({})
   const [loading, setLoading] = useState({})
   const [syncing, setSyncing] = useState(false)
   const [syncError, setSyncError] = useState(null)
+  const [expanded, setExpanded] = useState({})
+  const [readOverride, setReadOverride] = useState({})
+
+  const toggleExpand = (m) => {
+    setExpanded(e => ({ ...e, [m.id]: !e[m.id] }))
+    if (!m.is_read && !readOverride[m.id]) {
+      setReadOverride(r => ({ ...r, [m.id]: true }))
+      supabase.from('emails').update({ is_read: true }).eq('id', m.id).then(() => {})
+    }
+  }
 
   const handleDraftReply = async (emailId) => {
     if (drafts[emailId]) { setDrafts(d => ({ ...d, [emailId]: null })); return }
@@ -395,28 +418,42 @@ function InboxCard() {
           {syncError}
         </div>
       )}
-      {emails.map(m => (
-        <div key={m.id} style={{ padding: '14px 0', borderTop: '1px solid var(--border)' }}>
+      {!emailsLoading && emails.length === 0 && (
+        <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--faint)' }}>
+          No emails yet. Tap Sync Outlook to check your inbox.
+        </div>
+      )}
+      {emails.map(m => {
+        const unread = !m.is_read && !readOverride[m.id]
+        return (
+        <div key={m.id} onClick={() => toggleExpand(m)} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accentSoft)', color: 'var(--accentText)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m.initials}</div>
+            {unread && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}
             <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>{m.from_name}</div>
             <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>{new Date(m.received_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
           </div>
           <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 9, color: 'var(--text)' }}>{m.subject}</div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, marginTop: 3 }}>{m.snippet}</div>
+          {expanded[m.id] && (
+            <div style={{ marginTop: 11, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+              {stripHtml(m.full_content) || m.snippet}
+            </div>
+          )}
           {drafts[m.id] && (
             <div style={{ marginTop: 11, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
               {drafts[m.id]}
             </div>
           )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 11 }}>
-            <div onClick={() => handleDraftReply(m.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#fff', background: 'var(--accent)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer', opacity: loading[m.id] ? 0.6 : 1 }}>
+            <div onClick={(e) => { e.stopPropagation(); handleDraftReply(m.id) }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#fff', background: 'var(--accent)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer', opacity: loading[m.id] ? 0.6 : 1 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>
               {loading[m.id] ? 'Drafting…' : drafts[m.id] ? 'Hide draft' : 'Draft reply'}
             </div>
           </div>
         </div>
-      ))}
+        )
+      })}
     </Card>
   )
 }
