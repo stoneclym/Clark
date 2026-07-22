@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
   // Fetch recent inbox messages from Microsoft Graph
   const graphRes = await fetch(
     'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages' +
-    '?$select=id,subject,from,receivedDateTime,bodyPreview,body,isRead' +
+    '?$select=id,subject,from,receivedDateTime,bodyPreview,body,isRead,webLink' +
     '&$orderby=receivedDateTime desc' +
     '&$top=25',
     { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
       snippet: (m.bodyPreview as string || '').slice(0, 300),
       full_content: body?.content || null,
       is_read: (m.isRead as boolean) ?? false,
+      web_link: (m.webLink as string) || null,
     }
   })
 

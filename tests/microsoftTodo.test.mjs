@@ -56,6 +56,22 @@ test('createTodoTask shapes the Graph payload from due_at, no Z suffix on the da
   assert.equal(capturedBody.isReminderOn, true)
 })
 
+test('createTodoTask appends the class tag to the title so the class is visible in To Do', async () => {
+  let capturedBody = null
+  globalThis.fetch = async (url, init) => {
+    capturedBody = JSON.parse(init.body)
+    return { ok: true, status: 201, json: async () => ({ id: 'todo-1' }) }
+  }
+
+  await createTodoTask('tok-123', 'list-1', {
+    title: 'Essay',
+    tag: 'Lang',
+    due_at: '2026-07-09T03:59:00.000Z',
+  })
+
+  assert.equal(capturedBody.title, 'Essay — Lang')
+})
+
 test('createTodoTask throws with Graph error detail on a non-2xx response', async () => {
   globalThis.fetch = async () => ({ ok: false, status: 403, text: async () => '{"error":"Forbidden"}' })
   await assert.rejects(

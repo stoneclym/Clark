@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
   // Push: create/update every open task with a resolved due date.
   const { data: openTasks } = await supabase
     .from('tasks')
-    .select('id, title, due_at, microsoft_todo_task_id')
+    .select('id, title, tag, due_at, microsoft_todo_task_id')
     .eq('done', false)
     .not('due_at', 'is', null)
 
@@ -88,25 +88,57 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Pull: reflect completions/deletions made directly in Microsoft To Do back into Clark.
+  // Pull: reflect completions/deletions made directly in Microsoft To Do back
+  // into Clark, and import tasks created directly in the "Clark" To Do list
+  // that Clark doesn't know about yet.
   let pulled = 0
+  let imported = 0
   try {
     const { items, deltaLink } = await pullDelta(accessToken, listId, settings.microsoft_todo_delta_link)
 
     for (const item of items) {
       const removed = Boolean(item['@removed'])
       const status = item.status
-      if (!removed && status !== 'completed') continue
 
-      const { data: matches } = await supabase
+      if (removed || status === 'completed') {
+        const { data: matches } = await supabase
+          .from('tasks')
+          .select('id, done')
+          .eq('microsoft_todo_task_id', item.id)
+          .eq('done', false)
+
+        for (const match of matches ?? []) {
+          await supabase.from('tasks').update({ done: true }).eq('id', match.id)
+          pulled++
+        }
+        continue
+      }
+
+      // Still open in Microsoft To Do — if Clark has no record of this task
+      // yet, it was created directly in the app, not in Clark. Import it.
+      const { data: existing } = await supabase
         .from('tasks')
-        .select('id, done')
+        .select('id')
         .eq('microsoft_todo_task_id', item.id)
-        .eq('done', false)
+        .maybeSingle()
 
-      for (const match of matches ?? []) {
-        await supabase.from('tasks').update({ done: true }).eq('id', match.id)
-        pulled++
+      if (!existing) {
+        const dueAt = item.dueDateTime?.dateTime
+          ? new Date(`${item.dueDateTime.dateTime}Z`).toISOString()
+          : null
+        const { error: insertError } = await supabase.from('tasks').insert({
+          title: item.title || 'Untitled task',
+          due_at: dueAt,
+          due_date_calc: dueAt ? dueAt.slice(0, 10) : null,
+          source: 'Microsoft To Do',
+          microsoft_todo_task_id: item.id,
+          microsoft_todo_synced_at: new Date().toISOString(),
+        })
+        if (insertError) {
+          errors.push(`import "${item.title}": ${insertError.message}`)
+        } else {
+          imported++
+        }
       }
     }
 
@@ -117,16 +149,20 @@ Deno.serve(async (req) => {
     errors.push(`pull: ${err instanceof Error ? err.message : String(err)}`)
   }
 
+  await supabase.from('settings').update({
+    microsoft_todo_last_error: errors.length > 0 ? errors.join('; ') : null,
+  }).eq('id', settings.id)
+
   if (errors.length > 0) {
     console.error('sync-todo: errors:', errors)
     return new Response(
-      JSON.stringify({ error: errors.join('; '), pushed, completed, pulled }),
+      JSON.stringify({ error: errors.join('; '), pushed, completed, pulled, imported }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
 
   return new Response(
-    JSON.stringify({ pushed, completed, pulled }),
+    JSON.stringify({ pushed, completed, pulled, imported }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 })

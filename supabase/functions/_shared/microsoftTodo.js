@@ -43,8 +43,9 @@ function toGraphDateTime(isoString) {
 
 function taskPayload(task) {
   const due = toGraphDateTime(task.due_at)
+  const title = task.tag ? `${task.title} — ${task.tag}` : task.title
   return {
-    title: task.title,
+    title,
     dueDateTime: due,
     reminderDateTime: due,
     isReminderOn: true,

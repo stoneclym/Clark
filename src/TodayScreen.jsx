@@ -358,6 +358,8 @@ function InboxCard() {
   const [syncError, setSyncError] = useState(null)
   const [expanded, setExpanded] = useState({})
   const [readOverride, setReadOverride] = useState({})
+  const [showAll, setShowAll] = useState(false)
+  const [copied, setCopied] = useState({})
 
   const toggleExpand = (m) => {
     setExpanded(e => ({ ...e, [m.id]: !e[m.id] }))
@@ -378,6 +380,16 @@ function InboxCard() {
     }
   }
 
+  const copyAndOpenOutlook = async (e, m) => {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(drafts[m.id] || '')
+      setCopied(c => ({ ...c, [m.id]: true }))
+      setTimeout(() => setCopied(c => ({ ...c, [m.id]: false })), 2000)
+    } catch { /* clipboard may be unavailable — still open Outlook */ }
+    if (m.web_link) window.open(m.web_link, '_blank')
+  }
+
   const syncOutlook = async () => {
     setSyncing(true)
     setSyncError(null)
@@ -395,7 +407,9 @@ function InboxCard() {
   return (
     <Card>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <Label>Inbox</Label>
+        <div onClick={() => setShowAll(s => !s)} style={{ cursor: 'pointer' }}>
+          <Label>Inbox{showAll ? '' : emails.length > 5 ? ` · showing 5 of ${emails.length}` : ''}</Label>
+        </div>
         <button
           onClick={syncOutlook}
           style={{
@@ -423,7 +437,7 @@ function InboxCard() {
           No emails yet. Tap Sync Outlook to check your inbox.
         </div>
       )}
-      {emails.map(m => {
+      {(showAll ? emails : emails.slice(0, 5)).map(m => {
         const unread = !m.is_read && !readOverride[m.id]
         return (
         <div key={m.id} onClick={() => toggleExpand(m)} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
@@ -450,6 +464,12 @@ function InboxCard() {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>
               {loading[m.id] ? 'Drafting…' : drafts[m.id] ? 'Hide draft' : 'Draft reply'}
             </div>
+            {drafts[m.id] && (
+              <div onClick={(e) => copyAndOpenOutlook(e, m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--accentText)', background: 'var(--accentSoft)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                {copied[m.id] ? 'Copied!' : 'Copy & Open Outlook'}
+              </div>
+            )}
           </div>
         </div>
         )
