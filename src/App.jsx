@@ -7,7 +7,8 @@ import AskScreen from './AskScreen.jsx'
 import SettingsScreen from './SettingsScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
 import { supabase, invokeErrorMessage } from './lib/supabase.js'
-import { getStoredCredentialId, authenticateBiometric, clearCredentialId } from './lib/webauthn.js'
+import { clearCredentialId } from './lib/webauthn.js'
+import LockScreen from './LockScreen.jsx'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -85,6 +86,7 @@ export default function App() {
 
     if (oauthError && state === 'outlook_auth') {
       window.history.replaceState({}, '', window.location.pathname)
+      sessionStorage.setItem('clark_unlocked', '1')
       setAuthed(true)
       setScreen('settings')
       setOauthMessage({
@@ -96,6 +98,7 @@ export default function App() {
 
     if (code && state === 'outlook_auth') {
       window.history.replaceState({}, '', window.location.pathname)
+      sessionStorage.setItem('clark_unlocked', '1')
       setAuthed(true)
       supabase.functions.invoke('microsoft-callback', {
         body: { code, redirect_uri: window.location.origin },
@@ -110,20 +113,24 @@ export default function App() {
       return
     }
 
-    const credId = getStoredCredentialId()
-    if (!credId) {
-      setAuthed(true)
-    } else {
-      authenticateBiometric(credId)
-        .then(() => setAuthed(true))
-        .catch(() => setAuthed(false))
-    }
+    // Stay unlocked for the browser session — sessionStorage clears itself
+    // when the tab actually closes, so a refresh/navigation doesn't
+    // re-prompt Face ID/Touch ID, but reopening the tab does.
+    setAuthed(sessionStorage.getItem('clark_unlocked') === '1')
   }, [])
 
-  const unlock = useCallback(async () => {
-    const credId = getStoredCredentialId()
-    await authenticateBiometric(credId)
+  const handleUnlock = useCallback((opts = {}) => {
+    sessionStorage.setItem('clark_unlocked', '1')
+    if (opts.reset) {
+      clearCredentialId()
+      setScreen('setup')
+    }
     setAuthed(true)
+  }, [])
+
+  const handleLock = useCallback(() => {
+    sessionStorage.removeItem('clark_unlocked')
+    setAuthed(false)
   }, [])
 
   const base = dark ? DARK : LIGHT
@@ -169,47 +176,10 @@ export default function App() {
   }
 
   if (authed === false) {
-    const resetAndSetup = () => {
-      clearCredentialId()
-      setAuthed(true)
-      setScreen('setup')
-    }
     return (
       <div className="app-shell">
         <div className="app-frame" style={themeStyle}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, padding: 32 }}>
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 32, fontWeight: 600, color: 'var(--text)' }}>
-              Clark
-            </div>
-            <div
-              onClick={unlock}
-              style={{
-                width: 72, height: 72, borderRadius: '50%',
-                background: 'var(--accent)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', boxShadow: '0 6px 20px rgba(86,141,179,0.4)',
-              }}
-            >
-              <svg width="32" height="32" viewBox="0 0 48 48" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 16V11a5 5 0 0 1 5-5h5M32 6h5a5 5 0 0 1 5 5v5M42 32v5a5 5 0 0 1-5 5h-5M16 42h-5a5 5 0 0 1-5-5v-5"/>
-                <path d="M18 20v3M30 20v3M24 19v6l-2.4 1.6"/>
-                <path d="M18 30.5c1.8 1.8 4 2.6 6 2.6s4.2-.8 6-2.6"/>
-              </svg>
-            </div>
-            <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center' }}>
-              Tap to unlock with Face ID
-            </div>
-            <button
-              onClick={resetAndSetup}
-              style={{
-                marginTop: 8, background: 'none', border: 'none',
-                fontSize: 12, color: 'var(--faint)', cursor: 'pointer',
-                fontFamily: 'inherit', padding: '4px 0',
-              }}
-            >
-              Can't unlock? Reset Face ID
-            </button>
-          </div>
+          <LockScreen onUnlock={handleUnlock} />
         </div>
       </div>
     )
@@ -237,6 +207,7 @@ export default function App() {
             quickOpen={quickOpen}
             onToggleQuick={() => setQuickOpen(o => !o)}
             onOpenSettings={() => { setQuickOpen(false); setScreen('settings') }}
+            onLock={handleLock}
             dark={dark}
           />
         )}

@@ -56,7 +56,7 @@ export function openApp(deepLink, webUrl) {
   }, 1600)
 }
 
-export default function Header({ quickOpen, onToggleQuick, onOpenSettings, dark }) {
+export default function Header({ quickOpen, onToggleQuick, onOpenSettings, onLock, dark }) {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
@@ -93,6 +93,23 @@ export default function Header({ quickOpen, onToggleQuick, onOpenSettings, dark 
               <rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/>
               <rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/>
               <rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>
+            </svg>
+          </button>
+
+          {/* Lock */}
+          <button
+            onClick={onLock}
+            aria-label="Lock Clark"
+            style={{
+              cursor: 'pointer', width: 38, height: 38, borderRadius: '50%',
+              border: '1px solid var(--border)', background: 'var(--card)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--muted)', flexShrink: 0, padding: 0,
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="11" width="16" height="10" rx="2"/>
+              <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
             </svg>
           </button>
 
