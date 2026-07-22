@@ -30,7 +30,7 @@ function openExternal(url) {
   if (externalWindow) externalWindow.opener = null
 }
 
-function openApp(deepLink, webUrl) {
+export function openApp(deepLink, webUrl) {
   if (!deepLink) {
     openExternal(webUrl)
     return

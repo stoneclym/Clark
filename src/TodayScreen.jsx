@@ -9,6 +9,7 @@ import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { normalizeClassLabel } from './lib/classNames.js'
 import CalendarCard from './CalendarCard.jsx'
+import { openApp } from './Header.jsx'
 
 // ─── Shared UI primitives ──────────────────────────────────────
 function Label({ children }) {
@@ -382,10 +383,9 @@ function InboxCard() {
 
   const copyAndOpenOutlook = (e, m) => {
     e.stopPropagation()
-    // window.open must run synchronously in the click handler — after an
-    // `await` most mobile/PWA browsers no longer treat it as user-initiated
-    // and silently block the popup. Open first, copy to clipboard after.
-    if (m.web_link) window.open(m.web_link, '_blank')
+    // Deep-link into the Outlook app the same way the header's quick-links
+    // panel does, rather than opening the specific message on the web.
+    openApp('ms-outlook://', 'https://outlook.office.com/mail/')
     navigator.clipboard.writeText(drafts[m.id] || '').then(() => {
       setCopied(c => ({ ...c, [m.id]: true }))
       setTimeout(() => setCopied(c => ({ ...c, [m.id]: false })), 2000)
