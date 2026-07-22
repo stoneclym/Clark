@@ -380,14 +380,16 @@ function InboxCard() {
     }
   }
 
-  const copyAndOpenOutlook = async (e, m) => {
+  const copyAndOpenOutlook = (e, m) => {
     e.stopPropagation()
-    try {
-      await navigator.clipboard.writeText(drafts[m.id] || '')
+    // window.open must run synchronously in the click handler — after an
+    // `await` most mobile/PWA browsers no longer treat it as user-initiated
+    // and silently block the popup. Open first, copy to clipboard after.
+    if (m.web_link) window.open(m.web_link, '_blank')
+    navigator.clipboard.writeText(drafts[m.id] || '').then(() => {
       setCopied(c => ({ ...c, [m.id]: true }))
       setTimeout(() => setCopied(c => ({ ...c, [m.id]: false })), 2000)
-    } catch { /* clipboard may be unavailable — still open Outlook */ }
-    if (m.web_link) window.open(m.web_link, '_blank')
+    }).catch(() => {})
   }
 
   const syncOutlook = async () => {
@@ -465,9 +467,12 @@ function InboxCard() {
               {loading[m.id] ? 'Drafting…' : drafts[m.id] ? 'Hide draft' : 'Draft reply'}
             </div>
             {drafts[m.id] && (
-              <div onClick={(e) => copyAndOpenOutlook(e, m)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--accentText)', background: 'var(--accentSoft)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                {copied[m.id] ? 'Copied!' : 'Copy & Open Outlook'}
+              <div
+                onClick={(e) => copyAndOpenOutlook(e, m)}
+                title={copied[m.id] ? 'Copied!' : 'Copy & open in Outlook'}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, color: copied[m.id] ? '#fff' : 'var(--accentText)', background: copied[m.id] ? 'var(--accent)' : 'var(--accentSoft)', borderRadius: 9, cursor: 'pointer' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </div>
             )}
           </div>
