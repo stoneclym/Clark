@@ -47,21 +47,24 @@ const FAB_SIZE = 46
 
 export default function TabBar({ screen, onNavigate }) {
   return (
+    // Overlays the content (rather than reserving its own row) so the
+    // page visibly scrolls underneath it — that's what makes it read as
+    // floating above the UI instead of docked as a footer.
     <div style={{
-      position: 'sticky', bottom: 0, zIndex: 5,
+      position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5,
       display: 'flex', alignItems: 'center',
       padding: '0 18px 26px',
-      gap: 10,
       pointerEvents: 'none',
     }}>
-      {/* Mirrors the FAB's width so the pill — and the 4 tabs centered
-          inside it — sit centered on screen, independent of the FAB. */}
-      <div style={{ width: FAB_SIZE, flexShrink: 0 }} />
-
+      {/* Five equal segments across the full floating-bar width: the first
+          four (one pill, shared background) and the fifth (the FAB) each
+          get their icon centered in its own segment — so spacing from the
+          screen edge to the first icon, between every icon, and from the
+          last icon to the screen edge all come out equal. */}
       <div style={{
-        flex: 1, display: 'flex', alignItems: 'center',
+        flex: 4, display: 'flex', alignItems: 'center',
         background: 'var(--card)', border: '1px solid var(--border)',
-        borderRadius: 26, padding: '9px 6px',
+        borderRadius: 26, padding: '9px 0',
         boxShadow: '0 18px 40px rgba(20,18,14,0.24), 0 2px 8px rgba(20,18,14,0.12)',
         pointerEvents: 'auto',
       }}>
@@ -83,24 +86,26 @@ export default function TabBar({ screen, onNavigate }) {
         })}
       </div>
 
-      {/* Ask Clark — a distinct action button beside the tabs, not a fifth tab */}
-      <button
-        onClick={() => onNavigate('ask')}
-        aria-label="Ask Clark"
-        style={{
-          flexShrink: 0, width: FAB_SIZE, height: FAB_SIZE, borderRadius: '50%',
-          background: 'var(--accent)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(86,141,179,0.35)',
-          border: 'none', cursor: 'pointer', padding: 0,
-          pointerEvents: 'auto',
-        }}
-      >
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-5.4A8 8 0 1 1 21 11.5z"/>
-          <path d="M9.5 11h.01M13 11h.01M16.5 11h.01"/>
-        </svg>
-      </button>
+      {/* Ask Clark — its own segment, a separate circle, not touching the pill */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <button
+          onClick={() => onNavigate('ask')}
+          aria-label="Ask Clark"
+          style={{
+            flexShrink: 0, width: FAB_SIZE, height: FAB_SIZE, borderRadius: '50%',
+            background: 'var(--accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 8px 20px rgba(20,18,14,0.20), 0 4px 12px rgba(86,141,179,0.35)',
+            border: 'none', cursor: 'pointer', padding: 0,
+            pointerEvents: 'auto',
+          }}
+        >
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-5.4A8 8 0 1 1 21 11.5z"/>
+            <path d="M9.5 11h.01M13 11h.01M16.5 11h.01"/>
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }

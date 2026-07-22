@@ -49,6 +49,11 @@ const DARK = {
 
 const ACCENT = '#568DB3'
 
+// Reserved space at the bottom of each scrollable tab so its last content
+// isn't hidden behind the floating tab bar, which overlays content rather
+// than reserving its own row in the layout.
+const TAB_BAR_CLEARANCE = 100
+
 function systemPrefersDark() {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
 }
@@ -225,16 +230,16 @@ export default function App() {
               drafts, scroll position, expand/collapse state, etc. all
               survive navigating away and back. */}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-            <div ref={todayScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'today' ? 'block' : 'none' }}>
+            <div ref={todayScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingBottom: TAB_BAR_CLEARANCE, display: screen === 'today' ? 'block' : 'none' }}>
               <TodayScreen filter={filter} onFilter={setFilter} onOpenCalendar={openCalendar} onOpenInbox={openInbox} />
             </div>
-            <div ref={clubsScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'clubs' ? 'block' : 'none' }}>
+            <div ref={clubsScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingBottom: TAB_BAR_CLEARANCE, display: screen === 'clubs' ? 'block' : 'none' }}>
               <ClubsScreen />
             </div>
-            <div ref={calendarScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'calendar' ? 'block' : 'none' }}>
+            <div ref={calendarScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingBottom: TAB_BAR_CLEARANCE, display: screen === 'calendar' ? 'block' : 'none' }}>
               <CalendarScreen />
             </div>
-            <div ref={inboxScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'inbox' ? 'block' : 'none' }}>
+            <div ref={inboxScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingBottom: TAB_BAR_CLEARANCE, display: screen === 'inbox' ? 'block' : 'none' }}>
               <InboxScreen focusEmail={focusEmail} />
             </div>
             {/* Stays mounted so the conversation survives switching tabs */}
