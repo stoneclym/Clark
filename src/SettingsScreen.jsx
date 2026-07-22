@@ -3,6 +3,7 @@ import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { redirectToMicrosoftAuthorize } from './lib/microsoftAuth.js'
+import { registerBiometric, storeCredentialId, getStoredCredentialId, clearCredentialId } from './lib/webauthn.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 
 function relativeTimestamp(value) {
@@ -121,6 +122,32 @@ export default function SettingsScreen({ onBack }) {
   const [outlookConnecting, setOutlookConnecting] = useState(false)
   const [expanded, setExpanded] = useState({ tasks: true, meetings: false, clubTasks: false })
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
+
+  const [biometricEnabled, setBiometricEnabled] = useState(() => !!getStoredCredentialId())
+  const [biometricBusy, setBiometricBusy] = useState(false)
+  const [biometricError, setBiometricError] = useState(null)
+
+  const registerFaceId = async () => {
+    setBiometricBusy(true)
+    setBiometricError(null)
+    try {
+      const { credential_id, public_key } = await registerBiometric()
+      storeCredentialId(credential_id)
+      await supabase.from('webauthn_credentials').upsert({ credential_id, public_key })
+      setBiometricEnabled(true)
+    } catch (err) {
+      setBiometricError(err.message || 'Registration failed. Try again.')
+    } finally {
+      setBiometricBusy(false)
+    }
+  }
+
+  const turnOffBiometric = async () => {
+    const credId = getStoredCredentialId()
+    clearCredentialId()
+    setBiometricEnabled(false)
+    if (credId) await supabase.from('webauthn_credentials').delete().eq('credential_id', credId)
+  }
 
   const [msSettingsId, setMsSettingsId] = useState(null)
   const [msAccountEmail, setMsAccountEmail] = useState(null)
@@ -336,6 +363,77 @@ export default function SettingsScreen({ onBack }) {
                 color: msStatus.type === 'error' ? '#C0392B' : 'var(--accentText)',
               }}>
                 {msStatus.text}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Face ID / Touch ID */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 12 }}>
+            Face ID &amp; Touch ID
+          </div>
+          <div style={{
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 16, overflow: 'hidden',
+          }}>
+            <div
+              onClick={!biometricEnabled && !biometricBusy ? registerFaceId : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '16px 18px', cursor: !biometricEnabled && !biometricBusy ? 'pointer' : 'default',
+                opacity: biometricBusy ? 0.6 : 1,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: 10,
+                  background: 'var(--accentSoft)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 48 48" fill="none" stroke="var(--accentText)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 16V11a5 5 0 0 1 5-5h5M32 6h5a5 5 0 0 1 5 5v5M42 32v5a5 5 0 0 1-5 5h-5M16 42h-5a5 5 0 0 1-5-5v-5"/>
+                    <path d="M18 20v3M30 20v3M24 19v6l-2.4 1.6"/>
+                    <path d="M18 30.5c1.8 1.8 4 2.6 6 2.6s4.2-.8 6-2.6"/>
+                  </svg>
+                </div>
+                <div>
+                  <div style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--text)' }}>
+                    {biometricBusy ? 'Setting up…' : biometricEnabled ? 'Enabled on this device' : 'Set up Face ID / Touch ID'}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 1 }}>
+                    {biometricEnabled ? 'Used to unlock Clark instead of your passcode' : 'Tap to register this device’s biometric unlock'}
+                  </div>
+                </div>
+              </div>
+              {!biometricEnabled && !biometricBusy && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18l6-6-6-6"/>
+                </svg>
+              )}
+            </div>
+
+            {biometricEnabled && (
+              <div style={{ display: 'flex', gap: 8, padding: '0 18px 16px' }}>
+                <button
+                  onClick={turnOffBiometric}
+                  style={{
+                    padding: '8px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600,
+                    background: 'rgba(192,57,43,0.08)', color: '#C0392B',
+                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Turn off
+                </button>
+              </div>
+            )}
+
+            {biometricError && (
+              <div style={{
+                margin: '0 18px 16px', padding: '8px 12px', borderRadius: 9, fontSize: 12, lineHeight: 1.4,
+                background: 'rgba(192,57,43,0.08)', color: '#C0392B',
+              }}>
+                {biometricError}
               </div>
             )}
           </div>

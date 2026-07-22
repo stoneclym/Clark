@@ -1,9 +1,64 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase.js'
 import { getStoredCredentialId, authenticateBiometric } from './lib/webauthn.js'
 import { hashPasscode, verifyPasscode } from './lib/passcode.js'
 
 const PIN_PATTERN = /^\d{4,6}$/
+const REVEAL_MS = 400
+
+/** Numeric passcode field — shows each digit briefly as it's typed, then
+    masks it to a dot (matches the standard iOS passcode entry behavior). */
+function PasscodeInput({ value, onChange, placeholder, autoFocus }) {
+  const [revealedIndex, setRevealedIndex] = useState(null)
+  const timerRef = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => () => clearTimeout(timerRef.current), [])
+
+  const handleChange = (e) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 6)
+    if (digits.length > value.length) {
+      setRevealedIndex(digits.length - 1)
+      clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => setRevealedIndex(null), REVEAL_MS)
+    } else {
+      setRevealedIndex(null)
+    }
+    onChange(digits)
+  }
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input
+        ref={inputRef}
+        type="tel"
+        inputMode="numeric"
+        autoFocus={autoFocus}
+        value={value}
+        onChange={handleChange}
+        aria-label={placeholder}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, border: 'none', padding: 0, margin: 0 }}
+      />
+      <div
+        onClick={() => inputRef.current?.focus()}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          minHeight: 26, padding: '12px 10px', borderRadius: 12,
+          border: '1px solid var(--borderStrong)', background: 'var(--card)', cursor: 'text',
+        }}
+      >
+        {value.length === 0 && placeholder && (
+          <span style={{ fontSize: 14, color: 'var(--faint)' }}>{placeholder}</span>
+        )}
+        {Array.from(value).map((digit, i) => (
+          <span key={i} style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', width: 14, textAlign: 'center' }}>
+            {i === revealedIndex ? digit : '•'}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /**
  * Front-end lock screen — casual access gate only (stop a passerby from
@@ -180,18 +235,7 @@ export default function LockScreen({ onUnlock }) {
         <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center' }}>
           {resetMode ? 'Enter your passcode to reset Face ID' : 'Enter your passcode'}
         </div>
-        <input
-          type="tel"
-          inputMode="numeric"
-          autoFocus
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          style={{
-            width: '100%', textAlign: 'center', fontSize: 22, letterSpacing: '0.3em',
-            padding: '12px 10px', borderRadius: 12, border: '1px solid var(--borderStrong)',
-            background: 'var(--card)', color: 'var(--text)', fontFamily: 'inherit',
-          }}
-        />
+        <PasscodeInput value={pin} onChange={setPin} autoFocus />
         {error && <div style={{ fontSize: 12.5, color: '#C0392B' }}>{error}</div>}
         <button
           type="submit"
@@ -224,31 +268,8 @@ export default function LockScreen({ onUnlock }) {
       <div style={{ fontSize: 14, color: 'var(--muted)', textAlign: 'center' }}>
         Set a passcode (4-6 digits)
       </div>
-      <input
-        type="tel"
-        inputMode="numeric"
-        autoFocus
-        placeholder="New passcode"
-        value={pin}
-        onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-        style={{
-          width: '100%', textAlign: 'center', fontSize: 22, letterSpacing: '0.3em',
-          padding: '12px 10px', borderRadius: 12, border: '1px solid var(--borderStrong)',
-          background: 'var(--card)', color: 'var(--text)', fontFamily: 'inherit',
-        }}
-      />
-      <input
-        type="tel"
-        inputMode="numeric"
-        placeholder="Confirm passcode"
-        value={confirmPin}
-        onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-        style={{
-          width: '100%', textAlign: 'center', fontSize: 22, letterSpacing: '0.3em',
-          padding: '12px 10px', borderRadius: 12, border: '1px solid var(--borderStrong)',
-          background: 'var(--card)', color: 'var(--text)', fontFamily: 'inherit',
-        }}
-      />
+      <PasscodeInput value={pin} onChange={setPin} placeholder="New passcode" autoFocus />
+      <PasscodeInput value={confirmPin} onChange={setConfirmPin} placeholder="Confirm passcode" />
       {error && <div style={{ fontSize: 12.5, color: '#C0392B' }}>{error}</div>}
       <button
         type="submit"
