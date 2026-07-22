@@ -4,6 +4,7 @@ import { buildScheduleContext, describeScheduleContext } from '../_shared/schedu
 import { computeDeadline, inferKind, TIME_PATTERN } from '../_shared/deadlineEngine.js'
 import { getValidAccessToken } from '../_shared/microsoftGraph.js'
 import { pushSingleTaskBestEffort } from '../_shared/microsoftTodo.js'
+import { matchClub } from '../_shared/clubMatch.js'
 
 const TASK_KINDS = ['assignment', 'test', 'event']
 
@@ -145,7 +146,7 @@ const tools: Anthropic.Tool[] = [
       properties: {
         title: { type: 'string', description: 'Task title' },
         category: { type: 'string', enum: ['Class', 'Club', 'College', 'Personal'], description: 'Category' },
-        tag: { type: 'string', description: 'Short tag like the class name or club' },
+        tag: { type: 'string', description: 'Short tag like the class name, or the exact club name if this is for a club: "Student Council", "Beta Club", "National Honor Society", or "Spanish Club"' },
         kind: { type: 'string', enum: ['assignment', 'test', 'event'], description: 'What the item is: "test" for tests/quizzes/exams, "event" for things attended at a set time, "assignment" for anything produced or completed' },
         due_date: { type: 'string', description: 'The user\'s scheduling words VERBATIM: "today", "next class", "Friday", "tomorrow at 4 PM". Do not calculate or reword dates — deterministic code computes the real date.' },
         priority: { type: 'boolean', description: 'Whether this is a top priority task' },
@@ -170,7 +171,7 @@ const tools: Anthropic.Tool[] = [
     input_schema: {
       type: 'object' as const,
       properties: {
-        club_name: { type: 'string', description: 'Full exact name of the club: "National Honor Society", "Beta Club", "Spanish Club", or "Senior Class"' },
+        club_name: { type: 'string', description: 'Full exact name of the club: "National Honor Society", "Beta Club", "Spanish Club", or "Student Council"' },
         when: { type: 'string', description: 'Natural language meeting time: "tomorrow at 3:30", "Friday after school", "next Wednesday at 4 PM"' },
       },
       required: ['club_name', 'when'],
@@ -196,7 +197,7 @@ Deno.serve(async (req) => {
     supabase.from('tasks').select('id, title, category, tag, due_date, due_at, priority, done').eq('done', false).limit(30),
     supabase.from('grades').select('class_name, score, percentage, note').order('class_order'),
     supabase.from('emails').select('from_name, subject, snippet, received_at').order('received_at', { ascending: false }).limit(5),
-    supabase.from('clubs').select('name, role, next_meeting, club_tasks(task_text, done)').order('display_order'),
+    supabase.from('clubs').select('id, name, role, next_meeting, club_tasks(task_text, done)').order('display_order'),
     supabase.from('settings').select('*').order('created_at', { ascending: false }).limit(1),
   ])
 
@@ -261,35 +262,49 @@ ${context}`
       let result = ''
 
       if (block.name === 'create_task') {
-        const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
         const title = sentenceCaseTaskTitle(input.title) || 'Untitled task'
         const latestUserMessage = [...messages].reverse().find(message => message.role === 'user')?.content || ''
-        const tag = normalizeClassLabel(input.tag)
         const dueText = enrichDueText(input.due_date, `${input.title || ''} ${latestUserMessage}`)
-        const kind = TASK_KINDS.includes(String(input.kind))
-          ? String(input.kind)
-          : inferKind(String(input.title || ''), dueText)
-        const deadline = computeDeadline({
-          kind,
-          dueText,
-          className: tag || String(input.tag || ''),
-          title: String(input.title || ''),
-        }, settings)
-        const { data: insertedTask, error } = await supabase.from('tasks').insert({
-          title,
-          category: (input.category as string) || 'Personal',
-          tag,
-          kind,
-          ...deadline,
-          priority: (input.priority as boolean) || false,
-          priority_rank: input.priority ? (count || 0) + 1 : null,
-          source: 'Ask Clark',
-        }).select().single()
-        result = error ? `Error creating task: ${error.message}` : `Task "${title}" added successfully.`
 
-        // Best-effort: push the new reminder to Microsoft To Do right away.
-        if (!error && insertedTask && settings?.microsoft_refresh_token) {
-          await pushSingleTaskBestEffort(supabase, getValidAccessToken, settings, insertedTask)
+        // Deterministic safety net: if this is clearly a club task, route it
+        // to that club's card instead of the main tasks list — create_task
+        // has no club_tasks path of its own, so Claude can't do this itself.
+        const club = matchClub(`${input.title || ''} ${input.tag || ''} ${input.category || ''}`, clubs)
+
+        if (club) {
+          const { error } = await supabase.from('club_tasks').insert({
+            club_id: (club as { id: string }).id,
+            task_text: dueText ? `${title} (due ${dueText})` : title,
+          })
+          result = error ? `Error creating club task: ${error.message}` : `Task "${title}" added to ${(club as { name: string }).name}.`
+        } else {
+          const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
+          const tag = normalizeClassLabel(input.tag)
+          const kind = TASK_KINDS.includes(String(input.kind))
+            ? String(input.kind)
+            : inferKind(String(input.title || ''), dueText)
+          const deadline = computeDeadline({
+            kind,
+            dueText,
+            className: tag || String(input.tag || ''),
+            title: String(input.title || ''),
+          }, settings)
+          const { data: insertedTask, error } = await supabase.from('tasks').insert({
+            title,
+            category: (input.category as string) || 'Personal',
+            tag,
+            kind,
+            ...deadline,
+            priority: (input.priority as boolean) || false,
+            priority_rank: input.priority ? (count || 0) + 1 : null,
+            source: 'Ask Clark',
+          }).select().single()
+          result = error ? `Error creating task: ${error.message}` : `Task "${title}" added successfully.`
+
+          // Best-effort: push the new reminder to Microsoft To Do right away.
+          if (!error && insertedTask && settings?.microsoft_refresh_token) {
+            await pushSingleTaskBestEffort(supabase, getValidAccessToken, settings, insertedTask)
+          }
         }
       }
 

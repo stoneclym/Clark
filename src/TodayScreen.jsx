@@ -8,6 +8,7 @@ import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { normalizeClassLabel } from './lib/classNames.js'
+import { timeOfDayLabel } from './lib/greeting.js'
 import CalendarCard from './CalendarCard.jsx'
 import { openApp } from './Header.jsx'
 
@@ -81,7 +82,7 @@ function DashboardCard({ priorities, toggleTask }) {
       {/* AI Briefing */}
       <div style={{ marginTop: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Label>This morning</Label>
+          <Label>{timeOfDayLabel()}</Label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
             {briefing && <span style={{ fontSize: 11 }}>{new Date(briefing.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
             <button onClick={generate} disabled={generating} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accentText)', background: 'none', border: 'none', padding: 0, opacity: generating ? 0.5 : 1 }}>
@@ -211,7 +212,7 @@ function isClubTask(task) {
     value.includes('nhs') ||
     value.includes('beta club') ||
     value.includes('spanish club') ||
-    value.includes('senior class')
+    value.includes('student council')
   )
 }
 

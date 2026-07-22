@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, Component } from 'react'
+import { useState, useEffect, useCallback, useRef, Component } from 'react'
 import Header from './Header.jsx'
 import TabBar from './TabBar.jsx'
 import TodayScreen from './TodayScreen.jsx'
@@ -59,6 +59,8 @@ export default function App() {
   // Auth state: null=checking, false=locked, true=unlocked
   const [authed, setAuthed] = useState(null)
   const [oauthMessage, setOauthMessage] = useState(null)
+  const todayScrollRef = useRef(null)
+  const clubsScrollRef = useRef(null)
 
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)')
@@ -242,10 +244,10 @@ export default function App() {
         <ErrorBoundary>
           {/* Relative container — today/clubs stay mounted in their own scroll layers */}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'today' ? 'block' : 'none' }}>
+            <div ref={todayScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'today' ? 'block' : 'none' }}>
               <TodayScreen filter={filter} onFilter={setFilter} onCloseQuick={closeQuick} />
             </div>
-            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'clubs' ? 'block' : 'none' }}>
+            <div ref={clubsScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'clubs' ? 'block' : 'none' }}>
               <ClubsScreen onCloseQuick={closeQuick} />
             </div>
             {/* Stays mounted so the conversation survives switching tabs */}
@@ -263,7 +265,14 @@ export default function App() {
         </ErrorBoundary>
 
         {showChrome && (
-          <TabBar screen={screen} onNavigate={setScreen} />
+          <TabBar screen={screen} onNavigate={(next) => {
+            if (next === screen) {
+              const ref = next === 'today' ? todayScrollRef : next === 'clubs' ? clubsScrollRef : null
+              ref?.current?.scrollTo({ top: 0, behavior: 'smooth' })
+            } else {
+              setScreen(next)
+            }
+          }} />
         )}
       </div>
     </div>

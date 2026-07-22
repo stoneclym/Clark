@@ -4,6 +4,7 @@ import { buildScheduleContext, describeScheduleContext } from '../_shared/schedu
 import { computeDeadline, inferKind, TIME_PATTERN } from '../_shared/deadlineEngine.js'
 import { getValidAccessToken } from '../_shared/microsoftGraph.js'
 import { pushSingleTaskBestEffort } from '../_shared/microsoftTodo.js'
+import { matchClub } from '../_shared/clubMatch.js'
 
 const TASK_KINDS = ['assignment', 'test', 'event']
 
@@ -275,44 +276,65 @@ Rules:
   }
 
   const dbErrors: string[] = []
+  const clubTaskInserts: Array<{ club_id: string; task_text: string }> = []
 
-  // Insert tasks
+  // Insert tasks — but first pull out any item that clearly names a club so
+  // it lands on that club's card instead of the main tasks list. Claude is
+  // told to route club action items to club_tasks itself, but this is a
+  // deterministic safety net for when it doesn't.
   if (Array.isArray(parsed.tasks) && parsed.tasks.length) {
     const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
     const baseRank = (count || 0) + 1
 
-    const { data: insertedTasks, error: taskError } = await supabase.from('tasks').insert(
-      (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => {
-        const tag = taskTag(t.tag)
+    const plainTasks: Array<Record<string, unknown>> = []
+    ;(parsed.tasks as Array<Record<string, unknown>>).forEach((t) => {
+      const club = matchClub(`${t.title || ''} ${t.tag || ''} ${t.category || ''}`, clubRows)
+      if (club) {
+        const title = sentenceCaseTaskTitle(t.title) || 'Untitled task'
         const dueText = enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`)
-        const kind = TASK_KINDS.includes(String(t.kind))
-          ? String(t.kind)
-          : inferKind(String(t.title || ''), dueText)
-        const deadline = computeDeadline({
-          kind,
-          dueText,
-          className: tag || String(t.tag || ''),
-          title: String(t.title || ''),
-        }, settings)
-        return {
-          title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
-          category: String(t.category || 'Class'),
-          tag,
-          kind,
-          ...deadline,
-          priority: t.priority === true,
-          priority_rank: t.priority === true ? baseRank + i : null,
-          source: 'Brain Dump',
-        }
-      })
-    ).select()
-    if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
+        clubTaskInserts.push({
+          club_id: club.id,
+          task_text: dueText ? `${title} (due ${dueText})` : title,
+        })
+      } else {
+        plainTasks.push(t)
+      }
+    })
 
-    // Best-effort: push new reminders to Microsoft To Do right away rather
-    // than waiting for the next scheduled sync-todo pass.
-    if (settings?.microsoft_refresh_token) {
-      for (const task of insertedTasks ?? []) {
-        await pushSingleTaskBestEffort(supabase, getValidAccessToken, settings, task)
+    if (plainTasks.length) {
+      const { data: insertedTasks, error: taskError } = await supabase.from('tasks').insert(
+        plainTasks.map((t, i) => {
+          const tag = taskTag(t.tag)
+          const dueText = enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`)
+          const kind = TASK_KINDS.includes(String(t.kind))
+            ? String(t.kind)
+            : inferKind(String(t.title || ''), dueText)
+          const deadline = computeDeadline({
+            kind,
+            dueText,
+            className: tag || String(t.tag || ''),
+            title: String(t.title || ''),
+          }, settings)
+          return {
+            title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
+            category: String(t.category || 'Class'),
+            tag,
+            kind,
+            ...deadline,
+            priority: t.priority === true,
+            priority_rank: t.priority === true ? baseRank + i : null,
+            source: 'Brain Dump',
+          }
+        })
+      ).select()
+      if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
+
+      // Best-effort: push new reminders to Microsoft To Do right away rather
+      // than waiting for the next scheduled sync-todo pass.
+      if (settings?.microsoft_refresh_token) {
+        for (const task of insertedTasks ?? []) {
+          await pushSingleTaskBestEffort(supabase, getValidAccessToken, settings, task)
+        }
       }
     }
   }
@@ -349,19 +371,24 @@ Rules:
     }
   }
 
-  // Insert club tasks — exact club_name match using pre-loaded club rows
+  // Resolve club_name via alias-aware matching (not a strict string match —
+  // "NHS" should still resolve to "National Honor Society"), and merge with
+  // any tasks[] items redirected above because they clearly named a club.
   if (Array.isArray(parsed.club_tasks) && parsed.club_tasks.length) {
     for (const ct of parsed.club_tasks as Array<Record<string, unknown>>) {
       const clubName = String(ct.club_name || '').trim()
-      const clubRow = clubRows.find(c => c.name === clubName)
+      const clubRow = matchClub(clubName, clubRows)
       if (clubRow) {
-        const { error: ctError } = await supabase.from('club_tasks')
-          .insert({ club_id: clubRow.id, task_text: String(ct.task_text || '').trim() })
-        if (ctError) dbErrors.push(`club_tasks(${clubName}): ${ctError.message}`)
+        clubTaskInserts.push({ club_id: clubRow.id, task_text: String(ct.task_text || '').trim() })
       } else {
         dbErrors.push(`club_tasks: no club found matching "${clubName}"`)
       }
     }
+  }
+
+  if (clubTaskInserts.length) {
+    const { error: ctError } = await supabase.from('club_tasks').insert(clubTaskInserts)
+    if (ctError) dbErrors.push(`club_tasks: ${ctError.message}`)
   }
 
   // Update club next_meeting — exact club_name match

@@ -2,14 +2,17 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { supabase } from './lib/supabase.js'
+import { timeOfDayGreeting } from './lib/greeting.js'
 
-const GREETING = {
-  id: 'g0', role: 'clark',
-  text: "Hey — I'm Clark. Ask me anything about your schedule, tasks, grades, or inbox.",
+function makeGreeting() {
+  return {
+    id: 'g0', role: 'clark',
+    text: `${timeOfDayGreeting()} — I'm Clark. Ask me anything about your schedule, tasks, grades, or inbox.`,
+  }
 }
 
 export default function AskScreen({ visible, onBack }) {
-  const [messages, setMessages] = useState([GREETING])
+  const [messages, setMessages] = useState(() => [makeGreeting()])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
