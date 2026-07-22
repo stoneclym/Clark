@@ -1,3 +1,6 @@
+import { useState, useEffect } from 'react'
+import { subscribeSheetOpen } from './lib/sheetStack.js'
+
 const TABS = [
   {
     id: 'today',
@@ -46,6 +49,13 @@ const TABS = [
 const BAR_HEIGHT = 62
 
 export default function TabBar({ screen, onNavigate }) {
+  // Fade to near-invisible while any Sheet is open, rather than stacking
+  // two glass surfaces (bar + sheet) with real depth on top of each other.
+  const [dimmed, setDimmed] = useState(false)
+  useEffect(() => subscribeSheetOpen(setDimmed), [])
+
+  const [pressed, setPressed] = useState(false)
+
   return (
     // Overlays the content (rather than reserving its own row) so the
     // page visibly scrolls underneath it — that's what makes it read as
@@ -55,18 +65,19 @@ export default function TabBar({ screen, onNavigate }) {
       display: 'flex', alignItems: 'center',
       padding: '0 18px 26px',
       pointerEvents: 'none',
+      opacity: dimmed ? 0.05 : 1,
+      transition: 'opacity var(--spring)',
     }}>
       {/* Five equal segments across the full floating-bar width: the first
           four (one pill, shared background) and the fifth (the FAB) each
           get their icon centered in its own segment — so spacing from the
           screen edge to the first icon, between every icon, and from the
           last icon to the screen edge all come out equal. */}
-      <div style={{
+      <div className="glass" style={{
         flex: 4, height: BAR_HEIGHT, display: 'flex', alignItems: 'center',
-        background: 'var(--card)', border: '1px solid var(--border)',
         borderRadius: BAR_HEIGHT / 2,
         boxShadow: '0 18px 40px rgba(20,18,14,0.24), 0 2px 8px rgba(20,18,14,0.12)',
-        pointerEvents: 'auto',
+        pointerEvents: dimmed ? 'none' : 'auto',
       }}>
         {TABS.map(tab => {
           const color = screen === tab.id ? 'var(--accent)' : 'var(--faint)'
@@ -89,15 +100,20 @@ export default function TabBar({ screen, onNavigate }) {
       {/* Ask Clark — its own segment, a separate circle, not touching the pill */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <button
+          className="glass-accent"
           onClick={() => onNavigate('ask')}
+          onPointerDown={() => setPressed(true)}
+          onPointerUp={() => setPressed(false)}
+          onPointerLeave={() => setPressed(false)}
           aria-label="Ask Clark"
           style={{
             flexShrink: 0, width: BAR_HEIGHT, height: BAR_HEIGHT, borderRadius: '50%',
-            background: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 20px rgba(20,18,14,0.20), 0 4px 12px rgba(86,141,179,0.35)',
-            border: 'none', cursor: 'pointer', padding: 0,
-            pointerEvents: 'auto',
+            cursor: 'pointer', padding: 0,
+            pointerEvents: dimmed ? 'none' : 'auto',
+            transform: pressed ? 'scale(0.92)' : 'scale(1)',
+            transition: 'transform var(--spring)',
           }}
         >
           <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

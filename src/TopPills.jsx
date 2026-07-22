@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchWeather, SCHOOL_LOCATION_LABEL } from './lib/weather.js'
 import { QUICK_LINKS, openApp } from './lib/quickLinks.js'
+import { useReducedMotion } from './lib/motionPrefs.js'
 
 function WeatherIcon({ icon }) {
   const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
@@ -51,6 +52,7 @@ function WeatherPill() {
 }
 
 function AppsPill() {
+  const reducedMotion = useReducedMotion()
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
   const contentRef = useRef(null)
@@ -96,25 +98,30 @@ function AppsPill() {
 
       <div
         onClick={(e) => e.stopPropagation()}
+        className="glass"
         style={{
           position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 8, zIndex: 8,
           overflow: 'hidden', maxHeight, opacity: open ? 1 : 0,
-          transition: 'max-height 0.25s ease, opacity 0.2s ease',
-          background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16,
+          transition: reducedMotion ? 'opacity 120ms linear' : 'max-height var(--spring), opacity var(--spring)',
+          borderRadius: 16,
           boxShadow: '0 10px 28px rgba(20,18,14,0.14)',
         }}
       >
         <div ref={contentRef}>
-          {QUICK_LINKS.map((ql, i) => (
+          {QUICK_LINKS.map((ql, i) => {
+            const delay = reducedMotion ? 0 : (open ? i * 30 : 0)
+            return (
             <div
               key={ql.id}
               onClick={() => { openApp(ql.deepLink, ql.webUrl); setOpen(false) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 11, padding: '11px 14px',
                 borderTop: i === 0 ? 'none' : '1px solid var(--border)', cursor: 'pointer',
-                transform: open ? 'translateY(0)' : 'translateY(-6px)',
+                transform: reducedMotion ? 'none' : (open ? 'translateY(0)' : 'translateY(-6px)'),
                 opacity: open ? 1 : 0,
-                transition: `transform 0.22s ease ${open ? i * 40 : 0}ms, opacity 0.22s ease ${open ? i * 40 : 0}ms`,
+                transition: reducedMotion
+                  ? 'opacity 120ms linear'
+                  : `transform var(--spring) ${delay}ms, opacity var(--spring) ${delay}ms`,
               }}
             >
               <img
@@ -126,7 +133,8 @@ function AppsPill() {
               />
               <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{ql.label}</div>
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

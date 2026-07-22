@@ -62,3 +62,57 @@ button {
 .clark-markdown > *:last-child {
   margin-bottom: 0 !important;
 }
+
+/* ─── Motion ──────────────────────────────────────────────────────
+   No animation library in this project — --spring approximates a
+   snappy, non-oscillating spring (stiffness ~320 / damping ~32) via a
+   tuned cubic-bezier, shared by every glass-surface transition (sheets,
+   the FAB, the apps dropdown, Settings' swipe-back snap). */
+:root {
+  --spring: 300ms cubic-bezier(0.25, 0.9, 0.35, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --spring: 120ms linear;
+  }
+}
+
+/* ─── Liquid glass ────────────────────────────────────────────────
+   Reserved for the transient nav/chrome layer only (tab bar, FAB,
+   sheets, the apps dropdown) — content cards stay flat/solid. */
+.glass {
+  background: var(--glassSurface);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+  backdrop-filter: blur(14px) saturate(170%);
+  border: 1px solid var(--glassBorder);
+}
+.glass-accent {
+  background: var(--glassAccent);
+  -webkit-backdrop-filter: blur(14px) saturate(170%);
+  backdrop-filter: blur(14px) saturate(170%);
+  border: 1px solid var(--glassBorder);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--surface-2);
+    border-color: var(--border);
+  }
+  .glass-accent {
+    background: var(--accent);
+    border-color: var(--border);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass, .glass-accent {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  .glass {
+    background: var(--surface-2) !important;
+    border-color: var(--border) !important;
+  }
+  .glass-accent {
+    background: var(--accent) !important;
+    border-color: var(--border) !important;
+  }
+}

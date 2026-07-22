@@ -6,6 +6,7 @@ import ClubsScreen from './ClubsScreen.jsx'
 import CalendarScreen from './CalendarScreen.jsx'
 import InboxScreen from './InboxScreen.jsx'
 import AskScreen from './AskScreen.jsx'
+import Sheet from './Sheet.jsx'
 import SettingsScreen from './SettingsScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
 import { supabase, invokeErrorMessage } from './lib/supabase.js'
@@ -60,6 +61,7 @@ function systemPrefersDark() {
 
 export default function App() {
   const [screen, setScreen] = useState('today')
+  const [previousScreen, setPreviousScreen] = useState('today')
   const [dark, setDark] = useState(systemPrefersDark)
   const [filter, setFilter] = useState('All')
   const [focusEmail, setFocusEmail] = useState(null) // { id, token } | null
@@ -157,11 +159,17 @@ export default function App() {
     ? 'color-mix(in srgb, #568DB3 70%, #ffffff 30%)'
     : 'color-mix(in srgb, #568DB3 80%, #000000 20%)'
   const accentSoft = dark ? 'rgba(86,141,179,0.20)' : 'rgba(86,141,179,0.13)'
+  // Liquid-glass tokens for the nav/chrome layer only (tab bar, FAB,
+  // sheets, apps dropdown) — content cards never reference these.
+  const glassSurface = dark ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.15)'
+  const glassBorder = 'rgba(255,255,255,0.35)'
+  const glassAccent = dark ? 'rgba(86,141,179,0.6)' : 'rgba(86,141,179,0.55)'
 
   const themeStyle = {
     '--bg': base.bg,
     '--card': base.card,
     '--cardAlt': base.cardAlt,
+    '--surface-2': base.card,
     '--text': base.text,
     '--muted': base.muted,
     '--faint': base.faint,
@@ -170,11 +178,14 @@ export default function App() {
     '--accent': ACCENT,
     '--accentText': accentText,
     '--accentSoft': accentSoft,
+    '--glassSurface': glassSurface,
+    '--glassBorder': glassBorder,
+    '--glassAccent': glassAccent,
     background: base.bg,
     color: base.text,
   }
 
-  const showChrome = screen !== 'setup' && screen !== 'ask' && screen !== 'settings'
+  const showChrome = screen !== 'setup' && screen !== 'settings'
 
   if (authed === null) {
     return (
@@ -219,7 +230,7 @@ export default function App() {
         )}
         {showChrome && (
           <Header
-            onOpenSettings={() => setScreen('settings')}
+            onOpenSettings={() => { setPreviousScreen(screen); setScreen('settings') }}
             onLock={handleLock}
           />
         )}
@@ -242,11 +253,21 @@ export default function App() {
             <div ref={inboxScrollRef} style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingBottom: TAB_BAR_CLEARANCE, display: screen === 'inbox' ? 'block' : 'none' }}>
               <InboxScreen focusEmail={focusEmail} />
             </div>
-            {/* Stays mounted so the conversation survives switching tabs */}
-            <AskScreen visible={screen === 'ask'} onBack={() => setScreen('today')} />
+            {/* keepMounted so the conversation survives switching tabs even
+                while the sheet itself is closed */}
+            <Sheet
+              open={screen === 'ask'}
+              onClose={() => setScreen('today')}
+              variant="full"
+              flush
+              keepMounted
+              ariaLabel="Ask Clark"
+            >
+              <AskScreen onBack={() => setScreen('today')} />
+            </Sheet>
             {screen === 'settings' && (
               <SettingsScreen
-                onBack={() => setScreen('today')}
+                onBack={() => setScreen(previousScreen)}
               />
             )}
             {screen === 'setup' && (

@@ -11,7 +11,7 @@ function makeGreeting() {
   }
 }
 
-export default function AskScreen({ visible, onBack }) {
+export default function AskScreen({ onBack }) {
   const [messages, setMessages] = useState(() => [makeGreeting()])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,8 +19,8 @@ export default function AskScreen({ visible, onBack }) {
   const inputRef = useRef(null)
 
   useEffect(() => {
-    if (visible) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, visible])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const send = useCallback(async (text) => {
     const trimmed = text.trim()
@@ -62,22 +62,12 @@ export default function AskScreen({ visible, onBack }) {
   }, [input, send])
 
   return (
-    /*
-      height: 100dvh = dynamic viewport height.
-      On iOS, dvh shrinks when the keyboard opens, so the layout
-      compresses and the input stays above the keyboard automatically.
-    */
-    <div style={{
-      display: visible ? 'flex' : 'none', flexDirection: 'column',
-      height: '100dvh',
-      background: 'var(--bg)',
-      position: 'fixed', inset: 0,
-      zIndex: 10,
-    }}>
+    // Content for Sheet's `flush` mode — the panel itself (glass, drag
+    // handle, slide/dismiss) is Sheet.jsx's job; this just fills it.
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       {/* Header */}
       <div style={{
-        background: 'var(--bg)',
-        padding: '20px 16px 14px',
+        padding: '4px 16px 14px',
         borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', gap: 12,
         flexShrink: 0,
@@ -149,7 +139,6 @@ export default function AskScreen({ visible, onBack }) {
 
       {/* Input — always at bottom, above keyboard */}
       <div style={{
-        background: 'var(--bg)',
         borderTop: '1px solid var(--border)',
         padding: '10px 14px 28px',
         display: 'flex', alignItems: 'flex-end', gap: 10,

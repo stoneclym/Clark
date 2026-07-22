@@ -4,7 +4,12 @@ import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { redirectToMicrosoftAuthorize } from './lib/microsoftAuth.js'
 import { registerBiometric, storeCredentialId, getStoredCredentialId, clearCredentialId } from './lib/webauthn.js'
+import { useReducedMotion } from './lib/motionPrefs.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
+
+const EDGE_ZONE = 28 // px from the left screen edge the gesture must start within
+const SWIPE_BACK_THRESHOLD = 80
+const SWIPE_BACK_VELOCITY = 0.5 // px/ms flick
 
 function relativeTimestamp(value) {
   if (!value) return ''
@@ -126,6 +131,47 @@ export default function SettingsScreen({ onBack }) {
   const [biometricEnabled, setBiometricEnabled] = useState(() => !!getStoredCredentialId())
   const [biometricBusy, setBiometricBusy] = useState(false)
   const [biometricError, setBiometricError] = useState(null)
+
+  // Left-edge swipe-right-to-go-back — distinct from sheets' vertical
+  // drag-to-dismiss. The back chevron button below does the same thing;
+  // both need to work, this doesn't replace it.
+  const reducedMotion = useReducedMotion()
+  const [dragX, setDragX] = useState(0)
+  const [dragging, setDragging] = useState(false)
+  const swipe = useRef(null) // { x, y, t, active }
+
+  const onSwipeTouchStart = (e) => {
+    const x = e.touches[0].clientX
+    if (x > EDGE_ZONE) return
+    swipe.current = { x, y: e.touches[0].clientY, t: Date.now(), active: true }
+    setDragging(true)
+  }
+  const onSwipeTouchMove = (e) => {
+    if (!swipe.current?.active || reducedMotion) return
+    const dx = e.touches[0].clientX - swipe.current.x
+    const dy = e.touches[0].clientY - swipe.current.y
+    if (Math.abs(dy) > Math.abs(dx) * 1.5) {
+      // Looks like a vertical scroll, not a back-swipe — bail out.
+      swipe.current.active = false
+      setDragging(false)
+      setDragX(0)
+      return
+    }
+    if (dx > 0) setDragX(dx)
+  }
+  const onSwipeTouchEnd = (e) => {
+    setDragging(false)
+    if (!swipe.current?.active) { swipe.current = null; setDragX(0); return }
+    const dx = e.changedTouches[0].clientX - swipe.current.x
+    const dt = Math.max(1, Date.now() - swipe.current.t)
+    const velocity = dx / dt
+    swipe.current = null
+    if (dx > SWIPE_BACK_THRESHOLD || velocity > SWIPE_BACK_VELOCITY) {
+      onBack()
+    } else {
+      setDragX(0)
+    }
+  }
 
   const registerFaceId = async () => {
     setBiometricBusy(true)
@@ -255,7 +301,16 @@ export default function SettingsScreen({ onBack }) {
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg)' }}>
+    <div
+      onTouchStart={onSwipeTouchStart}
+      onTouchMove={onSwipeTouchMove}
+      onTouchEnd={onSwipeTouchEnd}
+      style={{
+        flex: 1, overflowY: 'auto', background: 'var(--bg)',
+        transform: reducedMotion ? 'none' : `translateX(${dragX}px)`,
+        transition: dragging ? 'none' : 'transform var(--spring)',
+      }}
+    >
       {/* Header */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 6,
