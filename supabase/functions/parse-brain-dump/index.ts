@@ -2,6 +2,8 @@ import Anthropic from 'npm:@anthropic-ai/sdk@0.30.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildScheduleContext, describeScheduleContext } from '../_shared/scheduleContext.js'
 import { computeDeadline, inferKind, TIME_PATTERN } from '../_shared/deadlineEngine.js'
+import { getValidAccessToken } from '../_shared/microsoftGraph.js'
+import { pushSingleTaskBestEffort } from '../_shared/microsoftTodo.js'
 
 const TASK_KINDS = ['assignment', 'test', 'event']
 
@@ -279,7 +281,7 @@ Rules:
     const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
     const baseRank = (count || 0) + 1
 
-    const { error: taskError } = await supabase.from('tasks').insert(
+    const { data: insertedTasks, error: taskError } = await supabase.from('tasks').insert(
       (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => {
         const tag = taskTag(t.tag)
         const dueText = enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`)
@@ -303,8 +305,16 @@ Rules:
           source: 'Brain Dump',
         }
       })
-    )
+    ).select()
     if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
+
+    // Best-effort: push new reminders to Microsoft To Do right away rather
+    // than waiting for the next scheduled sync-todo pass.
+    if (settings?.microsoft_refresh_token) {
+      for (const task of insertedTasks ?? []) {
+        await pushSingleTaskBestEffort(supabase, getValidAccessToken, settings, task)
+      }
+    }
   }
 
   // Update or create grade rows using Clark's formal class-name mapping.

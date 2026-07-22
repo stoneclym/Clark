@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { getValidAccessToken } from '../_shared/microsoftGraph.js'
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -10,63 +11,34 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-async function refreshAccessToken(refreshToken: string): Promise<string> {
-  const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: Deno.env.get('MICROSOFT_CLIENT_ID')!,
-      client_secret: Deno.env.get('MICROSOFT_CLIENT_SECRET')!,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-      scope: 'https://graph.microsoft.com/Mail.Read offline_access User.Read',
-    }),
-  })
-
-  const tokens = await res.json()
-  if (tokens.error) throw new Error(tokens.error_description || tokens.error)
-
-  const expiry = new Date(Date.now() + tokens.expires_in * 1000).toISOString()
-  const { data: existing } = await supabase.from('settings').select('id').limit(1).single()
-
-  if (existing) {
-    await supabase.from('settings').update({
-      microsoft_access_token: tokens.access_token,
-      microsoft_refresh_token: tokens.refresh_token ?? refreshToken,
-      microsoft_token_expiry: expiry,
-    }).eq('id', existing.id)
-  }
-
-  return tokens.access_token
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
-  // Load tokens from settings
   const { data: settings } = await supabase
     .from('settings')
-    .select('microsoft_access_token, microsoft_refresh_token, microsoft_token_expiry')
+    .select('id, microsoft_access_token, microsoft_refresh_token, microsoft_token_expiry')
+    .order('created_at', { ascending: false })
     .limit(1)
     .single()
 
   if (!settings?.microsoft_refresh_token) {
     return new Response(
-      JSON.stringify({ error: 'Outlook not connected. Complete setup first.' }),
+      JSON.stringify({ error: 'Outlook not connected. Connect your Microsoft account in Settings first.' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
 
-  // Refresh token if expired or expiring within 5 minutes
-  let accessToken = settings.microsoft_access_token
-  const expiresAt = settings.microsoft_token_expiry
-    ? new Date(settings.microsoft_token_expiry).getTime()
-    : 0
-
-  if (!accessToken || Date.now() > expiresAt - 5 * 60 * 1000) {
-    accessToken = await refreshAccessToken(settings.microsoft_refresh_token)
+  let accessToken: string
+  try {
+    accessToken = await getValidAccessToken(supabase, settings)
+  } catch (err) {
+    console.error('sync-outlook: token refresh failed:', err)
+    return new Response(
+      JSON.stringify({ error: `Microsoft sign-in expired: ${err instanceof Error ? err.message : String(err)}. Reconnect in Settings.` }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
   }
 
   // Fetch recent inbox messages from Microsoft Graph
@@ -80,6 +52,7 @@ Deno.serve(async (req) => {
 
   if (!graphRes.ok) {
     const err = await graphRes.text()
+    console.error('sync-outlook: Graph mail fetch failed:', graphRes.status, err)
     return new Response(
       JSON.stringify({ error: 'Microsoft Graph error', detail: err }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -104,7 +77,6 @@ Deno.serve(async (req) => {
       subject: m.subject as string || '(no subject)',
       snippet: (m.bodyPreview as string || '').slice(0, 300),
       full_content: body?.content || null,
-      headers_cleaned: true,
     }
   })
 
@@ -114,6 +86,7 @@ Deno.serve(async (req) => {
     .upsert(rows, { onConflict: 'external_id', ignoreDuplicates: false })
 
   if (error) {
+    console.error('sync-outlook: failed to upsert emails:', error.message)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

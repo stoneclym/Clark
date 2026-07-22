@@ -6,7 +6,7 @@ import ClubsScreen from './ClubsScreen.jsx'
 import AskScreen from './AskScreen.jsx'
 import SettingsScreen from './SettingsScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
-import { supabase } from './lib/supabase.js'
+import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { getStoredCredentialId, authenticateBiometric, clearCredentialId } from './lib/webauthn.js'
 
 class ErrorBoundary extends Component {
@@ -58,6 +58,7 @@ export default function App() {
 
   // Auth state: null=checking, false=locked, true=unlocked
   const [authed, setAuthed] = useState(null)
+  const [oauthMessage, setOauthMessage] = useState(null)
 
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-color-scheme: dark)')
@@ -78,9 +79,15 @@ export default function App() {
     if (code && state === 'outlook_auth') {
       window.history.replaceState({}, '', window.location.pathname)
       setAuthed(true)
-      setScreen('today')
       supabase.functions.invoke('microsoft-callback', {
         body: { code, redirect_uri: window.location.origin },
+      }).then(async ({ data, error }) => {
+        if (error || data?.error) {
+          setOauthMessage({ type: 'error', text: error ? await invokeErrorMessage(error) : data.error })
+        } else {
+          setOauthMessage({ type: 'success', text: data?.account_email ? `Connected to Microsoft as ${data.account_email}.` : 'Connected to Microsoft.' })
+        }
+        setScreen('settings')
       })
       return
     }
@@ -193,6 +200,20 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="app-frame" style={themeStyle}>
+        {oauthMessage && (
+          <div
+            onClick={() => setOauthMessage(null)}
+            style={{
+              position: 'absolute', top: 12, left: 12, right: 12, zIndex: 50,
+              background: oauthMessage.type === 'error' ? 'rgba(192,57,43,0.95)' : 'var(--accent)',
+              color: '#fff', borderRadius: 12, padding: '12px 16px',
+              fontSize: 13, lineHeight: 1.4, cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+            }}
+          >
+            {oauthMessage.text}
+          </div>
+        )}
         {showChrome && (
           <Header
             quickOpen={quickOpen}

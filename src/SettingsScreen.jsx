@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase.js'
+import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
-
-const MICROSOFT_CLIENT_ID = 'c92f4bf4-9da6-4d38-b49d-715a2bee4beb'
-const OUTLOOK_SCOPES = [
-  'https://graph.microsoft.com/Mail.Read',
-  'offline_access',
-  'User.Read',
-].join(' ')
+import { redirectToMicrosoftAuthorize } from './lib/microsoftAuth.js'
 
 function relativeTimestamp(value) {
   if (!value) return ''
@@ -113,9 +107,24 @@ export default function SettingsScreen({ dark, onBack }) {
   const [outlookConnecting, setOutlookConnecting] = useState(false)
   const [expanded, setExpanded] = useState({ tasks: true, meetings: false, clubTasks: false })
 
+  const [msSettingsId, setMsSettingsId] = useState(null)
+  const [msAccountEmail, setMsAccountEmail] = useState(null)
+  const [msSyncing, setMsSyncing] = useState(false)
+  const [msStatus, setMsStatus] = useState(null) // { type: 'error'|'success', text }
+
   const toggleSection = (key) => setExpanded(prev => ({ ...prev, [key]: !prev[key] }))
 
+  const loadMsAccount = () => {
+    supabase.from('settings').select('id, microsoft_account_email, microsoft_refresh_token')
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      .then(({ data }) => {
+        setMsSettingsId(data?.id ?? null)
+        setMsAccountEmail(data?.microsoft_refresh_token ? data.microsoft_account_email : null)
+      })
+  }
+
   useEffect(() => {
+    loadMsAccount()
     Promise.all([
       supabase.from('tasks').select('*').eq('done', true).order('created_at', { ascending: false }).limit(50),
       supabase.from('completed_meetings').select('*').order('completed_at', { ascending: false }).limit(50),
@@ -130,15 +139,43 @@ export default function SettingsScreen({ dark, onBack }) {
 
   const connectOutlook = () => {
     setOutlookConnecting(true)
-    const params = new URLSearchParams({
-      client_id: MICROSOFT_CLIENT_ID,
-      response_type: 'code',
-      redirect_uri: window.location.origin,
-      scope: OUTLOOK_SCOPES,
-      state: 'outlook_auth',
-      response_mode: 'query',
-    })
-    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`
+    redirectToMicrosoftAuthorize()
+  }
+
+  const disconnectMicrosoft = async () => {
+    if (!msSettingsId) return
+    setMsStatus(null)
+    await supabase.from('settings').update({
+      microsoft_access_token: null,
+      microsoft_refresh_token: null,
+      microsoft_token_expiry: null,
+      microsoft_account_email: null,
+    }).eq('id', msSettingsId)
+    setMsAccountEmail(null)
+  }
+
+  const syncMicrosoft = async () => {
+    setMsSyncing(true)
+    setMsStatus(null)
+    try {
+      const [mailRes, todoRes] = await Promise.all([
+        supabase.functions.invoke('sync-outlook'),
+        supabase.functions.invoke('sync-todo'),
+      ])
+      const errors = []
+      if (mailRes.error) errors.push(`Mail: ${await invokeErrorMessage(mailRes.error)}`)
+      else if (mailRes.data?.error) errors.push(`Mail: ${mailRes.data.error}`)
+      if (todoRes.error) errors.push(`To Do: ${await invokeErrorMessage(todoRes.error)}`)
+      else if (todoRes.data?.error) errors.push(`To Do: ${todoRes.data.error}`)
+
+      setMsStatus(errors.length
+        ? { type: 'error', text: errors.join(' · ') }
+        : { type: 'success', text: `Synced ${mailRes.data?.synced ?? 0} email(s), ${todoRes.data?.pushed ?? 0} reminder(s).` })
+    } catch (err) {
+      setMsStatus({ type: 'error', text: err instanceof Error ? err.message : 'Sync failed' })
+    } finally {
+      setMsSyncing(false)
+    }
   }
 
   const restoreTask = async (id) => {
@@ -252,20 +289,20 @@ export default function SettingsScreen({ dark, onBack }) {
           </div>
         </div>
 
-        {/* Email */}
+        {/* Microsoft (Outlook + To Do) */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)', marginBottom: 12 }}>
-            Email
+            Outlook &amp; Microsoft To Do
           </div>
           <div style={{
             background: 'var(--card)', border: '1px solid var(--border)',
             borderRadius: 16, overflow: 'hidden',
           }}>
             <div
-              onClick={!outlookConnecting ? connectOutlook : undefined}
+              onClick={!msAccountEmail && !outlookConnecting ? connectOutlook : undefined}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '16px 18px', cursor: outlookConnecting ? 'default' : 'pointer',
+                padding: '16px 18px', cursor: !msAccountEmail && !outlookConnecting ? 'pointer' : 'default',
                 opacity: outlookConnecting ? 0.6 : 1,
               }}
             >
@@ -283,19 +320,56 @@ export default function SettingsScreen({ dark, onBack }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--text)' }}>
-                    {outlookConnecting ? 'Redirecting…' : 'Connect Outlook'}
+                    {outlookConnecting ? 'Redirecting…' : msAccountEmail ? `Connected as ${msAccountEmail}` : 'Connect Microsoft account'}
                   </div>
                   <div style={{ fontSize: 11.5, color: 'var(--faint)', marginTop: 1 }}>
-                    Sign in with your school Microsoft account
+                    {msAccountEmail ? 'Mail sync + Microsoft To Do reminders' : 'Sign in to sync mail and push reminders to Microsoft To Do'}
                   </div>
                 </div>
               </div>
-              {!outlookConnecting && (
+              {!msAccountEmail && !outlookConnecting && (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M9 18l6-6-6-6"/>
                 </svg>
               )}
             </div>
+
+            {msAccountEmail && (
+              <div style={{ display: 'flex', gap: 8, padding: '0 18px 16px' }}>
+                <button
+                  onClick={syncMicrosoft}
+                  disabled={msSyncing}
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600,
+                    background: 'var(--accentSoft)', color: 'var(--accentText)',
+                    border: 'none', cursor: msSyncing ? 'default' : 'pointer', fontFamily: 'inherit',
+                    opacity: msSyncing ? 0.6 : 1,
+                  }}
+                >
+                  {msSyncing ? 'Syncing…' : 'Sync now'}
+                </button>
+                <button
+                  onClick={disconnectMicrosoft}
+                  style={{
+                    padding: '8px 12px', borderRadius: 9, fontSize: 12, fontWeight: 600,
+                    background: 'rgba(192,57,43,0.08)', color: '#C0392B',
+                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Disconnect
+                </button>
+              </div>
+            )}
+
+            {msStatus && (
+              <div style={{
+                margin: '0 18px 16px', padding: '8px 12px', borderRadius: 9, fontSize: 12, lineHeight: 1.4,
+                background: msStatus.type === 'error' ? 'rgba(192,57,43,0.08)' : 'var(--accentSoft)',
+                color: msStatus.type === 'error' ? '#C0392B' : 'var(--accentText)',
+              }}>
+                {msStatus.text}
+              </div>
+            )}
           </div>
         </div>
 

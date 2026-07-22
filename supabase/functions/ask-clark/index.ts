@@ -2,6 +2,8 @@ import Anthropic from 'npm:@anthropic-ai/sdk@0.30.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildScheduleContext, describeScheduleContext } from '../_shared/scheduleContext.js'
 import { computeDeadline, inferKind, TIME_PATTERN } from '../_shared/deadlineEngine.js'
+import { getValidAccessToken } from '../_shared/microsoftGraph.js'
+import { pushSingleTaskBestEffort } from '../_shared/microsoftTodo.js'
 
 const TASK_KINDS = ['assignment', 'test', 'event']
 
@@ -273,7 +275,7 @@ ${context}`
           className: tag || String(input.tag || ''),
           title: String(input.title || ''),
         }, settings)
-        const { error } = await supabase.from('tasks').insert({
+        const { data: insertedTask, error } = await supabase.from('tasks').insert({
           title,
           category: (input.category as string) || 'Personal',
           tag,
@@ -282,8 +284,13 @@ ${context}`
           priority: (input.priority as boolean) || false,
           priority_rank: input.priority ? (count || 0) + 1 : null,
           source: 'Ask Clark',
-        })
+        }).select().single()
         result = error ? `Error creating task: ${error.message}` : `Task "${title}" added successfully.`
+
+        // Best-effort: push the new reminder to Microsoft To Do right away.
+        if (!error && insertedTask && settings?.microsoft_refresh_token) {
+          await pushSingleTaskBestEffort(supabase, getValidAccessToken, settings, insertedTask)
+        }
       }
 
       if (block.name === 'mark_task_done') {

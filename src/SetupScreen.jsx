@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { supabase } from './lib/supabase.js'
 import { registerBiometric, storeCredentialId } from './lib/webauthn.js'
+import { redirectToMicrosoftAuthorize } from './lib/microsoftAuth.js'
 
 const STEP_META = [
   { title: 'Register Face ID', desc: 'Biometric sign-in — no passwords' },
@@ -201,7 +202,7 @@ export default function SetupScreen({ onComplete }) {
           />
         )}
         {step === 6 && (
-          <StepGmail
+          <StepMicrosoft
             saving={saving} error={saveError}
             onFinish={finish}
           />
@@ -542,26 +543,11 @@ function StepCapeFear({ c1, setC1, c2, setC2, onNext }) {
 }
 
 
-const MICROSOFT_CLIENT_ID = 'c92f4bf4-9da6-4d38-b49d-715a2bee4beb'
-const OUTLOOK_SCOPES = [
-  'https://graph.microsoft.com/Mail.Read',
-  'offline_access',
-  'User.Read',
-].join(' ')
-
-function StepGmail({ saving, error, onFinish }) {
+function StepMicrosoft({ saving, error, onFinish }) {
   const connectOutlook = async () => {
     // Save settings first so they aren't lost during the OAuth redirect
     await onFinish({ skipComplete: true })
-    const params = new URLSearchParams({
-      client_id: MICROSOFT_CLIENT_ID,
-      response_type: 'code',
-      redirect_uri: window.location.origin,
-      scope: OUTLOOK_SCOPES,
-      state: 'outlook_auth',
-      response_mode: 'query',
-    })
-    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params}`
+    redirectToMicrosoftAuthorize()
   }
 
   return (

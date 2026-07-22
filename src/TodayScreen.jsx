@@ -4,7 +4,7 @@ import { useGrades } from './hooks/useGrades.js'
 import { useEmails } from './hooks/useEmails.js'
 import { useSchedule } from './hooks/useSchedule.js'
 import { useBriefing } from './hooks/useBriefing.js'
-import { supabase } from './lib/supabase.js'
+import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { normalizeClassLabel } from './lib/classNames.js'
@@ -342,6 +342,7 @@ function InboxCard() {
   const [drafts, setDrafts] = useState({})
   const [loading, setLoading] = useState({})
   const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState(null)
 
   const handleDraftReply = async (emailId) => {
     if (drafts[emailId]) { setDrafts(d => ({ ...d, [emailId]: null })); return }
@@ -356,8 +357,13 @@ function InboxCard() {
 
   const syncOutlook = async () => {
     setSyncing(true)
+    setSyncError(null)
     try {
-      await supabase.functions.invoke('sync-outlook')
+      const { data, error } = await supabase.functions.invoke('sync-outlook')
+      if (error) setSyncError(await invokeErrorMessage(error))
+      else if (data?.error) setSyncError(data.error)
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
     }
@@ -384,6 +390,11 @@ function InboxCard() {
           {syncing ? 'Syncing…' : 'Sync Outlook'}
         </button>
       </div>
+      {syncError && (
+        <div style={{ fontSize: 11.5, color: '#C0392B', background: 'rgba(192,57,43,0.08)', borderRadius: 8, padding: '6px 10px', marginTop: 8 }}>
+          {syncError}
+        </div>
+      )}
       {emails.map(m => (
         <div key={m.id} style={{ padding: '14px 0', borderTop: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -403,12 +414,6 @@ function InboxCard() {
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>
               {loading[m.id] ? 'Drafting…' : drafts[m.id] ? 'Hide draft' : 'Draft reply'}
             </div>
-            {m.headers_cleaned && (
-              <span style={{ fontSize: 10.5, color: 'var(--faint)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accentText)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
-                headers cleaned
-              </span>
-            )}
           </div>
         </div>
       ))}
