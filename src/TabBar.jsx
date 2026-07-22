@@ -43,20 +43,26 @@ const TABS = [
   },
 ]
 
+const FAB_SIZE = 46
+
 export default function TabBar({ screen, onNavigate }) {
   return (
     <div style={{
       position: 'sticky', bottom: 0, zIndex: 5,
       display: 'flex', alignItems: 'center',
-      padding: '0 14px 20px',
+      padding: '0 18px 26px',
       gap: 10,
       pointerEvents: 'none',
     }}>
+      {/* Mirrors the FAB's width so the pill — and the 4 tabs centered
+          inside it — sit centered on screen, independent of the FAB. */}
+      <div style={{ width: FAB_SIZE, flexShrink: 0 }} />
+
       <div style={{
         flex: 1, display: 'flex', alignItems: 'center',
         background: 'var(--card)', border: '1px solid var(--border)',
         borderRadius: 26, padding: '9px 6px',
-        boxShadow: '0 10px 30px rgba(20,18,14,0.14)',
+        boxShadow: '0 18px 40px rgba(20,18,14,0.24), 0 2px 8px rgba(20,18,14,0.12)',
         pointerEvents: 'auto',
       }}>
         {TABS.map(tab => {
@@ -82,7 +88,7 @@ export default function TabBar({ screen, onNavigate }) {
         onClick={() => onNavigate('ask')}
         aria-label="Ask Clark"
         style={{
-          flexShrink: 0, width: 46, height: 46, borderRadius: '50%',
+          flexShrink: 0, width: FAB_SIZE, height: FAB_SIZE, borderRadius: '50%',
           background: 'var(--accent)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 12px rgba(86,141,179,0.35)',
