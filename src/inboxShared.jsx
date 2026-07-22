@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useEmails } from './hooks/useEmails.js'
 import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { openApp } from './lib/quickLinks.js'
+import { triggerHaptic } from './lib/haptics.js'
 
 export function stripHtml(html) {
   if (!html) return ''
@@ -123,6 +124,7 @@ export default function InboxSheetContent({ focusEmail }) {
       setSyncError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
+      triggerHaptic()
     }
   }
 

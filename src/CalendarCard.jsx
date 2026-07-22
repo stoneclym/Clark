@@ -4,6 +4,7 @@ import { useSchedule } from './hooks/useSchedule.js'
 import { buildMonthData, monthGrid, dayDots, todayISO } from './lib/calendar.js'
 import Sheet from './Sheet.jsx'
 import { DayAgenda } from './calendarShared.jsx'
+import { triggerHaptic } from './lib/haptics.js'
 
 const SWIPE_THRESHOLD = 48
 
@@ -54,7 +55,7 @@ export default function CalendarCard({ tasks, onOpenCalendar }) {
 
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)' }}>
-      <div onClick={onOpenCalendar} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', margin: '-8px 0 6px', cursor: 'pointer' }}>
+      <div onClick={() => { triggerHaptic(); onOpenCalendar() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', margin: '-8px 0 6px', cursor: 'pointer' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)' }}>
           Calendar
         </div>
@@ -115,7 +116,7 @@ export default function CalendarCard({ tasks, onOpenCalendar }) {
 export function MonthArrow({ dir, onClick }) {
   return (
     <button
-      onClick={onClick}
+      onClick={() => { triggerHaptic(); onClick() }}
       aria-label={dir === 'prev' ? 'Previous month' : 'Next month'}
       style={{
         width: 26, height: 26, borderRadius: 8, padding: 0,

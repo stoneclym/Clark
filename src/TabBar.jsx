@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { subscribeSheetOpen } from './lib/sheetStack.js'
+import { triggerHaptic } from './lib/haptics.js'
 
 const TABS = [
   {
@@ -73,28 +74,35 @@ export default function TabBar({ screen, onNavigate }) {
           get their icon centered in its own segment — so spacing from the
           screen edge to the first icon, between every icon, and from the
           last icon to the screen edge all come out equal. */}
-      <div className="glass" style={{
-        flex: 4, height: BAR_HEIGHT, display: 'flex', alignItems: 'center',
+      <div style={{
+        position: 'relative',
+        flex: 4, height: BAR_HEIGHT,
         borderRadius: BAR_HEIGHT / 2,
+        overflow: 'hidden',
         boxShadow: '0 18px 40px rgba(20,18,14,0.24), 0 2px 8px rgba(20,18,14,0.12)',
         pointerEvents: dimmed ? 'none' : 'auto',
       }}>
-        {TABS.map(tab => {
-          const color = screen === tab.id ? 'var(--accent)' : 'var(--faint)'
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onNavigate(tab.id)}
-              style={{
-                flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                cursor: 'pointer', color, background: 'none', border: 'none', padding: '3px 0',
-              }}
-            >
-              {tab.icon}
-              <span style={{ fontSize: 10.5, fontWeight: 600 }}>{tab.label}</span>
-            </button>
-          )
-        })}
+        {/* Plain filler clipped by the wrapper's own overflow:hidden — see
+            the App.css .glass comment. */}
+        <div className="glass" style={{ position: 'absolute', inset: 0 }} />
+        <div style={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center' }}>
+          {TABS.map(tab => {
+            const color = screen === tab.id ? 'var(--accent)' : 'var(--faint)'
+            return (
+              <button
+                key={tab.id}
+                onClick={() => { triggerHaptic(); onNavigate(tab.id) }}
+                style={{
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  cursor: 'pointer', color, background: 'none', border: 'none', padding: '3px 0',
+                }}
+              >
+                {tab.icon}
+                <span style={{ fontSize: 10.5, fontWeight: 600 }}>{tab.label}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Ask Clark — its own segment, a separate circle, not touching the pill */}

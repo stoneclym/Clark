@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { fetchWeather, SCHOOL_LOCATION_LABEL } from './lib/weather.js'
 import { QUICK_LINKS, openApp } from './lib/quickLinks.js'
 import { useReducedMotion } from './lib/motionPrefs.js'
+import { triggerHaptic } from './lib/haptics.js'
 
 function WeatherIcon({ icon }) {
   const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
@@ -75,7 +76,7 @@ function AppsPill() {
   return (
     <div ref={rootRef} style={{ flex: 1, position: 'relative' }}>
       <div
-        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+        onClick={(e) => { e.stopPropagation(); triggerHaptic(); setOpen(o => !o) }}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           background: open ? 'var(--accentSoft)' : 'var(--card)',
@@ -98,7 +99,6 @@ function AppsPill() {
 
       <div
         onClick={(e) => e.stopPropagation()}
-        className="glass"
         style={{
           position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 8, zIndex: 8,
           overflow: 'hidden', maxHeight, opacity: open ? 1 : 0,
@@ -107,7 +107,10 @@ function AppsPill() {
           boxShadow: '0 10px 28px rgba(20,18,14,0.14)',
         }}
       >
-        <div ref={contentRef}>
+        {/* Plain filler clipped by the wrapper's own overflow:hidden — see
+            the App.css .glass comment. */}
+        <div className="glass" style={{ position: 'absolute', inset: 0 }} />
+        <div ref={contentRef} style={{ position: 'relative' }}>
           {QUICK_LINKS.map((ql, i) => {
             const delay = reducedMotion ? 0 : (open ? i * 30 : 0)
             return (

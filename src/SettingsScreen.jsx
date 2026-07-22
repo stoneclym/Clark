@@ -5,6 +5,7 @@ import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { redirectToMicrosoftAuthorize } from './lib/microsoftAuth.js'
 import { registerBiometric, storeCredentialId, getStoredCredentialId, clearCredentialId } from './lib/webauthn.js'
 import { useReducedMotion } from './lib/motionPrefs.js'
+import { triggerHaptic } from './lib/haptics.js'
 import ConfirmDialog from './ConfirmDialog.jsx'
 
 const EDGE_ZONE = 28 // px from the left screen edge the gesture must start within
@@ -31,7 +32,7 @@ function ArchiveSection({ title, items, loading, expanded, onToggle, renderItem,
   return (
     <div>
       <button
-        onClick={onToggle}
+        onClick={() => { triggerHaptic(); onToggle() }}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
           background: 'none', border: 'none', padding: 0, marginBottom: 12, cursor: 'pointer', fontFamily: 'inherit',
@@ -334,7 +335,7 @@ export default function SettingsScreen({ onBack }) {
         display: 'flex', alignItems: 'center', gap: 12,
       }}>
         <button
-          onClick={onBack}
+          onClick={() => { triggerHaptic(); onBack() }}
           style={{
             width: 38, height: 38, borderRadius: '50%',
             border: '1px solid var(--border)', background: 'var(--card)',

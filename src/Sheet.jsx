@@ -94,19 +94,17 @@ export default function Sheet({ open, onClose, variant = 'peek', children, ariaL
       <div
         role="dialog"
         aria-label={ariaLabel}
-        className="glass"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         style={{
+          position: 'relative',
           borderRadius: '22px 22px 0 0',
-          borderBottom: 'none',
           width: '100%',
           // dvh (not vh) for the full variant so it still shrinks correctly
           // when the on-screen keyboard opens (e.g. Ask Clark's input).
           height: isFull ? '94dvh' : undefined,
           maxHeight: isFull ? '94dvh' : '70vh',
-          display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
           boxShadow: '0 -6px 30px rgba(20,18,14,0.18)',
           opacity: reducedMotion ? (entered ? 1 : 0) : 1,
@@ -120,18 +118,24 @@ export default function Sheet({ open, onClose, variant = 'peek', children, ariaL
             : (dragging ? 'none' : 'transform var(--spring)'),
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', flexShrink: 0 }}>
-          <div style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)' }} />
+        {/* Plain filler clipped by the wrapper's own overflow:hidden above
+            — see the App.css .glass comment for why the blur/border live
+            here rather than directly on the rounded wrapper. */}
+        <div className="glass" style={{ position: 'absolute', inset: 0, borderBottom: 'none' }} />
+        <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px', flexShrink: 0 }}>
+            <div style={{ width: 36, height: 4, borderRadius: 999, background: 'var(--border)' }} />
+          </div>
+          {flush ? (
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              {children}
+            </div>
+          ) : (
+            <div style={{ flex: 1, overflowY: 'auto', padding: isFull ? '0 0 20px' : '0 20px 30px' }}>
+              {children}
+            </div>
+          )}
         </div>
-        {flush ? (
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {children}
-          </div>
-        ) : (
-          <div style={{ flex: 1, overflowY: 'auto', padding: isFull ? '0 0 20px' : '0 20px 30px' }}>
-            {children}
-          </div>
-        )}
       </div>
     </div>
   )

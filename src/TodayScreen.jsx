@@ -9,6 +9,7 @@ import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
 import { normalizeClassLabel, CLASS_TAG_ORDER } from './lib/classNames.js'
 import { timeOfDayLabel } from './lib/greeting.js'
+import { triggerHaptic } from './lib/haptics.js'
 import CalendarCard from './CalendarCard.jsx'
 import TopPills from './TopPills.jsx'
 
@@ -69,7 +70,7 @@ function BriefingSection({ briefing, generating, generate }) {
 
   return (
     <div style={{ marginTop: 14, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
-      <div onClick={() => setExpanded(e => !e)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+      <div onClick={() => { triggerHaptic(); setExpanded(e => !e) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
         <Label>{timeOfDayLabel()}</Label>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
           {briefing && <span style={{ fontSize: 11 }}>{new Date(briefing.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
@@ -144,7 +145,7 @@ function DashboardCard({ priorities, toggleTask }) {
             {priorities.map(item => {
               const dateInfo = getTaskDateInfo(item)
               return (
-                <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
+                <div key={item.id} onClick={() => { triggerHaptic(); toggleTask(item.id) }} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
                   <CheckBox done={item.done} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
@@ -180,6 +181,7 @@ function BrainDumpCard({ onParsed }) {
       setLastResult(data?.parsed)
       setStatus('done')
       setText('')
+      triggerHaptic()
       onParsed?.()
     } catch {
       setStatus('error')
@@ -255,7 +257,7 @@ function TaskRow({ item, toggleTask }) {
   const dateInfo = getTaskDateInfo(item)
   const tagLabel = displayTaskTag(item.tag)
   return (
-    <div onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+    <div onClick={() => { triggerHaptic(); toggleTask(item.id) }} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
       <CheckBox done={item.done} small />
       <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
       {tagLabel && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{tagLabel}</span>}
@@ -276,7 +278,7 @@ function ClassSection({ label, tasks, toggleTask, expanded, onToggle }) {
   return (
     <div style={{ borderTop: '1px solid var(--border)' }}>
       <button
-        onClick={onToggle}
+        onClick={() => { triggerHaptic(); onToggle() }}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
           background: 'none', border: 'none', padding: '11px 2px', cursor: 'pointer', fontFamily: 'inherit',
@@ -456,7 +458,7 @@ function InboxCard({ onOpenInbox }) {
 
   return (
     <Card>
-      <div onClick={() => onOpenInbox()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', margin: '-8px 0 -4px', cursor: 'pointer' }}>
+      <div onClick={() => { triggerHaptic(); onOpenInbox() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', margin: '-8px 0 -4px', cursor: 'pointer' }}>
         <Label>Inbox</Label>
       </div>
       {emails.length === 0 && (
@@ -465,7 +467,7 @@ function InboxCard({ onOpenInbox }) {
         </div>
       )}
       {emails.slice(0, 3).map(m => (
-        <div key={m.id} onClick={(e) => { e.stopPropagation(); onOpenInbox(m.id) }} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+        <div key={m.id} onClick={(e) => { e.stopPropagation(); triggerHaptic(); onOpenInbox(m.id) }} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accentSoft)', color: 'var(--accentText)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m.initials}</div>
             {!m.is_read && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}

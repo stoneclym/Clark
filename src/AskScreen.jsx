@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { supabase } from './lib/supabase.js'
 import { timeOfDayGreeting } from './lib/greeting.js'
+import { triggerHaptic } from './lib/haptics.js'
 
 function makeGreeting() {
   return {
@@ -51,6 +52,7 @@ export default function AskScreen({ onBack }) {
       }])
     } finally {
       setLoading(false)
+      triggerHaptic()
     }
   }, [messages, loading])
 
