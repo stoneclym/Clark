@@ -15,7 +15,9 @@ async function graphFetch(accessToken, path, init = {}) {
   })
   if (!res.ok) {
     const detail = await res.text()
-    throw new Error(`Graph ${init.method || 'GET'} ${path} failed (${res.status}): ${detail}`)
+    const err = new Error(`Graph ${init.method || 'GET'} ${path} failed (${res.status}): ${detail}`)
+    err.status = res.status
+    throw err
   }
   return res.status === 204 ? null : res.json()
 }

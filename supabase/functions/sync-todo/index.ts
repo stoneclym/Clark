@@ -68,7 +68,13 @@ Deno.serve(async (req) => {
       }
       pushed++
     } catch (err) {
-      errors.push(`push "${task.title}": ${err instanceof Error ? err.message : String(err)}`)
+      if (err instanceof Error && (err as { status?: number }).status === 404) {
+        // The linked Microsoft item was deleted directly in To Do — clear
+        // the stale link so it gets recreated as a fresh item next sync.
+        await supabase.from('tasks').update({ microsoft_todo_task_id: null }).eq('id', task.id)
+      } else {
+        errors.push(`push "${task.title}": ${err instanceof Error ? err.message : String(err)}`)
+      }
     }
   }
 
@@ -84,7 +90,14 @@ Deno.serve(async (req) => {
       await completeTodoTask(accessToken, listId, task.microsoft_todo_task_id)
       completed++
     } catch (err) {
-      errors.push(`complete "${task.title}": ${err instanceof Error ? err.message : String(err)}`)
+      if (err instanceof Error && (err as { status?: number }).status === 404) {
+        // Already gone on Microsoft's side (e.g. deleted directly in To
+        // Do) — nothing left to complete. Clear the stale link instead of
+        // retrying this exact failure forever.
+        await supabase.from('tasks').update({ microsoft_todo_task_id: null }).eq('id', task.id)
+      } else {
+        errors.push(`complete "${task.title}": ${err instanceof Error ? err.message : String(err)}`)
+      }
     }
   }
 
