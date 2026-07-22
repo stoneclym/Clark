@@ -91,13 +91,12 @@ export default function LockScreen({ onUnlock }) {
       setSettingsId(data?.id ?? null)
       setPasscodeHash(data?.passcode_hash ?? null)
 
-      const credId = getStoredCredentialId()
-      const canUseBiometric = credId && await isPlatformAuthenticatorAvailable()
+      const canUseBiometric = getStoredCredentialId() && await isPlatformAuthenticatorAvailable()
       if (cancelled) return
 
       if (canUseBiometric) {
         setPhase('biometric')
-        attemptBiometric(credId, data?.passcode_hash ?? null)
+        attemptBiometric(data?.passcode_hash ?? null)
       } else {
         setPhase(data?.passcode_hash ? 'passcode' : 'passcode-setup')
       }
@@ -107,9 +106,9 @@ export default function LockScreen({ onUnlock }) {
     return () => { cancelled = true }
   }, [])
 
-  const attemptBiometric = useCallback(async (credId, hash) => {
+  const attemptBiometric = useCallback(async (hash) => {
     try {
-      await authenticateBiometric(credId)
+      await authenticateBiometric()
       onUnlock()
     } catch {
       setMessage('Biometric login unavailable — enter your passcode.')
@@ -118,10 +117,9 @@ export default function LockScreen({ onUnlock }) {
   }, [onUnlock])
 
   const retryBiometric = () => {
-    const credId = getStoredCredentialId()
     setPhase('biometric')
     setMessage(null)
-    attemptBiometric(credId, passcodeHash)
+    attemptBiometric(passcodeHash)
   }
 
   const showPasscode = () => {
