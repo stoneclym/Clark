@@ -71,6 +71,11 @@ export default function Sheet({ open, onClose, variant = 'peek', children, ariaL
       style={{
         position: 'fixed', inset: 0, zIndex: 40,
         display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+        // The container itself must never intercept touches — only its
+        // scrim/panel children opt into pointerEvents individually. This
+        // matters most for keepMounted sheets (Ask Clark), which stay in
+        // the DOM permanently after the first open.
+        pointerEvents: 'none',
       }}
     >
       {/* A separate sibling above the panel — not a shared parent — so its

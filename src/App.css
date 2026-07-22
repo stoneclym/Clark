@@ -78,41 +78,44 @@ button {
 }
 
 /* ─── Liquid glass ────────────────────────────────────────────────
-   Reserved for the transient nav/chrome layer only (tab bar, FAB,
-   sheets, the apps dropdown) — content cards stay flat/solid. */
+   Reserved for the transient nav/chrome layer only (tab bar, sheets, the
+   apps dropdown) — content cards stay flat/solid.
+
+   The blur/background/border live on a ::before pseudo-element (not the
+   host element itself), each with its own border-radius: inherit. Some
+   WebKit versions don't reliably clip a backdrop-filter to an ancestor's
+   overflow:hidden + border-radius, which showed up as a square blur
+   "halo" poking past a sheet's rounded corners — giving the filter its
+   own matching radius sidesteps that instead of depending on the clip. */
 .glass {
+  position: relative;
+  isolation: isolate;
+}
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
   background: var(--glassSurface);
   -webkit-backdrop-filter: blur(16px) saturate(210%);
   backdrop-filter: blur(16px) saturate(210%);
   border: 1px solid var(--glassBorder);
 }
-.glass-accent {
-  background: var(--glassAccent);
-  -webkit-backdrop-filter: blur(16px) saturate(210%);
-  backdrop-filter: blur(16px) saturate(210%);
-  border: 1px solid var(--glassBorder);
-}
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass {
+  .glass::before {
     background: var(--surface-2);
-    border-color: var(--border);
-  }
-  .glass-accent {
-    background: var(--accent);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
     border-color: var(--border);
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .glass, .glass-accent {
+  .glass::before {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
-  }
-  .glass {
     background: var(--surface-2) !important;
-    border-color: var(--border) !important;
-  }
-  .glass-accent {
-    background: var(--accent) !important;
     border-color: var(--border) !important;
   }
 }

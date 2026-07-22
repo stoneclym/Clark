@@ -100,7 +100,6 @@ export default function TabBar({ screen, onNavigate }) {
       {/* Ask Clark — its own segment, a separate circle, not touching the pill */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <button
-          className="glass-accent"
           onClick={() => onNavigate('ask')}
           onPointerDown={() => setPressed(true)}
           onPointerUp={() => setPressed(false)}
@@ -108,6 +107,7 @@ export default function TabBar({ screen, onNavigate }) {
           aria-label="Ask Clark"
           style={{
             flexShrink: 0, width: BAR_HEIGHT, height: BAR_HEIGHT, borderRadius: '50%',
+            background: 'var(--accent)', border: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 20px rgba(20,18,14,0.20), 0 4px 12px rgba(86,141,179,0.35)',
             cursor: 'pointer', padding: 0,

@@ -159,14 +159,12 @@ export default function App() {
     ? 'color-mix(in srgb, #568DB3 70%, #ffffff 30%)'
     : 'color-mix(in srgb, #568DB3 80%, #000000 20%)'
   const accentSoft = dark ? 'rgba(86,141,179,0.20)' : 'rgba(86,141,179,0.13)'
-  // Liquid-glass tokens for the nav/chrome layer only (tab bar, FAB,
-  // sheets, apps dropdown) — content cards never reference these. Same
-  // alpha in both modes ("even") — higher transparency + a stronger
-  // saturate() filter (see .glass/.glass-accent in App.css) so the color
-  // reads as vivid glass rather than a pale, near-opaque tint.
-  const glassSurface = dark ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.10)'
+  // Liquid-glass tokens for the nav/chrome layer only (tab bar, sheets,
+  // apps dropdown) — content cards never reference these. Tinted toward
+  // the app's own bg hue (not neutral white/black) so blurred glass still
+  // reads as "Clark's cream", not a mismatched off-white/gray frost.
+  const glassSurface = dark ? 'rgba(26,24,21,0.45)' : 'rgba(240,238,230,0.45)'
   const glassBorder = 'rgba(255,255,255,0.35)'
-  const glassAccent = 'rgba(86,141,179,0.32)'
 
   const themeStyle = {
     '--bg': base.bg,
@@ -183,7 +181,6 @@ export default function App() {
     '--accentSoft': accentSoft,
     '--glassSurface': glassSurface,
     '--glassBorder': glassBorder,
-    '--glassAccent': glassAccent,
     background: base.bg,
     color: base.text,
   }
