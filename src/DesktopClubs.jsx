@@ -67,8 +67,8 @@ export default function DesktopClubs() {
           return (
             <div key={club.id} style={{
               flex: 1, minWidth: 0,
-              background: 'var(--card)', border: 'var(--card-border)', borderRadius: 20,
-              boxShadow: 'var(--card-shadow)', padding: '22px 22px 24px',
+              background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22,
+              boxShadow: 'var(--card-shadow)', padding: 20,
               display: 'flex', flexDirection: 'column', gap: 14,
             }}>
               <div style={{

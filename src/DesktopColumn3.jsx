@@ -13,7 +13,7 @@ function AppsRow() {
           style={{
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
             background: 'var(--card)', border: 'var(--card-border)', borderRadius: 18, boxShadow: 'var(--card-shadow)',
-            padding: '16px 8px', cursor: 'pointer',
+            padding: '18px 10px', cursor: 'pointer',
           }}
         >
           <img
@@ -33,16 +33,23 @@ function AppsRow() {
     reusing the exact same content component the mobile Inbox tab uses.
     Neither has an expand of its own; both just scroll/sit at natural
     size — Inbox already tall enough it doesn't need one. */
-export default function DesktopColumn3({ dimmed }) {
+export default function DesktopColumn3({ dimmed, onDismiss }) {
   return (
     <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 18 }}>
       <AppsRow />
-      <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', overflow: 'hidden' }}>
+      {/* Capped to roughly 3 emails' worth of height — the rest of the
+          ~20 most recent emails are reachable by scrolling inside the
+          card, not by the card growing taller (which was pushing Clubs
+          far down the page). */}
+      <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', maxHeight: 420, overflowY: 'auto' }}>
         <InboxSheetContent focusEmail={null} />
       </div>
 
       {dimmed && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(20,18,14,0.35)', borderRadius: 22, transition: 'opacity var(--spring)' }} />
+        <div
+          onClick={onDismiss}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(20,18,14,0.35)', borderRadius: 22, transition: 'opacity var(--spring)', cursor: 'pointer' }}
+        />
       )}
     </div>
   )

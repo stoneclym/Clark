@@ -104,7 +104,7 @@ export default function DesktopCalendarCard({ expanded, onToggleExpand }) {
       </div>
 
       {expanded && (
-        <div style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', marginTop: 16 }}>
+        <div style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginTop: 16, minHeight: 300 }}>
           <DayAgenda iso={selectedISO} entry={monthData.get(selectedISO)} today={today} />
         </div>
       )}

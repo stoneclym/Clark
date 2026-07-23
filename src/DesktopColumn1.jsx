@@ -9,7 +9,7 @@ import AskScreen from './AskScreen.jsx'
     Dump/Tasks state (draft text, filter, expanded class groups) is
     preserved across the swap since they're just not rendered while
     expanded, not torn down. */
-export default function DesktopColumn1({ askExpanded, onCloseAsk, dimmed }) {
+export default function DesktopColumn1({ askExpanded, onCloseAsk, dimmed, onDismiss }) {
   const { tasks, toggleTask, refetch } = useTasks()
   const [filter, setFilter] = useState('All')
 
@@ -33,7 +33,10 @@ export default function DesktopColumn1({ askExpanded, onCloseAsk, dimmed }) {
       )}
 
       {dimmed && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(20,18,14,0.35)', borderRadius: 22, transition: 'opacity var(--spring)' }} />
+        <div
+          onClick={onDismiss}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(20,18,14,0.35)', borderRadius: 22, transition: 'opacity var(--spring)', cursor: 'pointer' }}
+        />
       )}
     </div>
   )
