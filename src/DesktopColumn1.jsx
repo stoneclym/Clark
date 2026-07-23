@@ -16,13 +16,14 @@ import { SPACE } from './lib/spacing.js'
     Tasks is this column's one flexible "filler" card — it grows to fill
     whatever space remains after the header and Brain Dump, even with
     few tasks, so column 1 always bottoms out level with column 2 (the
-    reference height — see DesktopApp.jsx's grid stretch). */
-export default function DesktopColumn1({ onOpenSettings, onLock, askExpanded, onToggleAsk, onCloseAsk, dimmed, onDismiss }) {
+    reference height, given here as an explicit pixel `columnHeight`
+    measured in DesktopColumn2 — see DesktopApp.jsx). */
+export default function DesktopColumn1({ onOpenSettings, onLock, askExpanded, onToggleAsk, onCloseAsk, dimmed, onDismiss, columnHeight }) {
   const { tasks, toggleTask, refetch } = useTasks()
   const [filter, setFilter] = useState('All')
 
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: SPACE.card, height: '100%' }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: SPACE.card, height: columnHeight }}>
       <DesktopHeader
         onOpenSettings={onOpenSettings}
         onLock={onLock}

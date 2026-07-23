@@ -34,11 +34,13 @@ function AppsRow() {
     reusing the exact same content component the mobile Inbox tab uses.
     Inbox is this column's one flexible "filler" card — it grows to fill
     whatever space remains after the apps row (matching columns 1/2's
-    height instead of stopping short), scrolling internally to reveal
-    the rest of the ~20 most recent emails exactly as before. */
-export default function DesktopColumn3({ dimmed, onDismiss }) {
+    height, given here as an explicit pixel `columnHeight` measured in
+    DesktopColumn2 — see DesktopApp.jsx), scrolling internally within
+    that fixed height to reveal the rest of the ~20 most recent emails
+    instead of growing the whole column past it. */
+export default function DesktopColumn3({ dimmed, onDismiss, columnHeight }) {
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: SPACE.card, height: '100%' }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: SPACE.card, height: columnHeight }}>
       <AppsRow />
       <div style={{ flex: 1, minHeight: 0, background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', overflowY: 'auto' }}>
         <InboxSheetContent focusEmail={null} />
