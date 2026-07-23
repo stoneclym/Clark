@@ -15,11 +15,13 @@ function IconButton({ onClick, label, children }) {
 }
 
 /** Desktop header — Clark wordmark/date, settings gear, the Batch 3 lock
-    button, and the Ask Clark trigger, all in ONE card sized to exactly
-    column 1's grid width (see DesktopApp.jsx) rather than a row of
-    independently-sized elements. No apps icon here — the apps quick-links
-    already live as their own static row at the top of column 3 (Batch 9,
-    section 4); having both was redundant. */
+    button, and the Ask Clark trigger, all in ONE card. Batch 10: this is
+    now literally the first item in column 1's own flex stack (rendered
+    inside DesktopColumn1, not a separate grid row) — it just happens to
+    be a card like any other, not a distinct band above the "real" grid.
+    No apps icon here — the apps quick-links already live as their own
+    static row at the top of column 3 (Batch 9); having both was
+    redundant. */
 export default function DesktopHeader({ onOpenSettings, onLock, askExpanded, onToggleAsk }) {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -27,7 +29,7 @@ export default function DesktopHeader({ onOpenSettings, onLock, askExpanded, onT
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
       background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)',
-      padding: '18px 20px', height: '100%', boxSizing: 'border-box',
+      padding: '18px 20px', flexShrink: 0, boxSizing: 'border-box',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
         <div style={{ minWidth: 0 }}>

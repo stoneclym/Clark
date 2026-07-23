@@ -22,9 +22,9 @@ function Label({ children }) {
   )
 }
 
-function Card({ children }) {
+function Card({ children, style }) {
   return (
-    <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, padding: 20, boxShadow: 'var(--card-shadow)' }}>
+    <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, padding: 20, boxShadow: 'var(--card-shadow)', ...style }}>
       {children}
     </div>
   )
@@ -301,7 +301,10 @@ function ClassSection({ label, tasks, toggleTask, expanded, onToggle }) {
   )
 }
 
-export function TasksCard({ tasks, toggleTask, filter, onFilter }) {
+// `fill` is opt-in only (desktop's Tasks column filler — see
+// DesktopColumn1.jsx); mobile never passes it, so this whole prop is a
+// no-op there and every style below stays `undefined` (unset).
+export function TasksCard({ tasks, toggleTask, filter, onFilter, fill }) {
   const [expandedClasses, setExpandedClasses] = useState({})
   const toggleClass = (label) => setExpandedClasses(prev => ({ ...prev, [label]: !prev[label] }))
 
@@ -323,12 +326,12 @@ export function TasksCard({ tasks, toggleTask, filter, onFilter }) {
     : null
 
   return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <Card style={fill ? { display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0, boxSizing: 'border-box' } : undefined}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <Label>Tasks</Label>
         <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{filtered.length} active</div>
       </div>
-      <div style={{ display: 'flex', gap: 7, marginTop: 13, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 7, marginTop: 13, flexWrap: 'wrap', flexShrink: 0 }}>
         {['All', 'Class', 'Club', 'Priority'].map(label => (
           <button key={label} onClick={() => onFilter(label)} style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: label === filter ? 'var(--accent)' : 'transparent', color: label === filter ? '#fff' : 'var(--muted)', border: label === filter ? 'none' : '1px solid var(--border)' }}>
             {label}
@@ -336,7 +339,7 @@ export function TasksCard({ tasks, toggleTask, filter, onFilter }) {
         ))}
       </div>
       {classGroups ? (
-        <div style={{ marginTop: 6 }}>
+        <div style={fill ? { marginTop: 6, flex: '1 1 0%', minHeight: 0, overflowY: 'auto' } : { marginTop: 6 }}>
           {CLASS_TAG_ORDER.map(tag => (
             <ClassSection
               key={tag}
@@ -358,7 +361,7 @@ export function TasksCard({ tasks, toggleTask, filter, onFilter }) {
           )}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
+        <div style={fill ? { display: 'flex', flexDirection: 'column', marginTop: 6, flex: '1 1 0%', minHeight: 0, overflowY: 'auto' } : { display: 'flex', flexDirection: 'column', marginTop: 6 }}>
           {filtered.map(item => <TaskRow key={item.id} item={item} toggleTask={toggleTask} />)}
         </div>
       )}

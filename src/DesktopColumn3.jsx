@@ -1,6 +1,7 @@
 import { QUICK_LINKS, openApp } from './lib/quickLinks.js'
 import InboxSheetContent from './inboxShared.jsx'
 import { triggerHaptic } from './lib/haptics.js'
+import { SPACE } from './lib/spacing.js'
 
 function AppsRow() {
   const dark = window.matchMedia?.('(prefers-color-scheme: dark)').matches
@@ -31,17 +32,15 @@ function AppsRow() {
 /** Column 3 — the static apps quick-links row (distinct from the header's
     dropdown version, but triggers the same links) and the full Inbox,
     reusing the exact same content component the mobile Inbox tab uses.
-    Neither has an expand of its own; both just scroll/sit at natural
-    size — Inbox already tall enough it doesn't need one. */
+    Inbox is this column's one flexible "filler" card — it grows to fill
+    whatever space remains after the apps row (matching columns 1/2's
+    height instead of stopping short), scrolling internally to reveal
+    the rest of the ~20 most recent emails exactly as before. */
 export default function DesktopColumn3({ dimmed, onDismiss }) {
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: SPACE.card, height: '100%' }}>
       <AppsRow />
-      {/* Capped to roughly 3 emails' worth of height — the rest of the
-          ~20 most recent emails are reachable by scrolling inside the
-          card, not by the card growing taller (which was pushing Clubs
-          far down the page). */}
-      <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', maxHeight: 420, overflowY: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', overflowY: 'auto' }}>
         <InboxSheetContent focusEmail={null} />
       </div>
 

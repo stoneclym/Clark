@@ -1,8 +1,16 @@
-import { useState } from 'react'
 import { useSchedule } from './hooks/useSchedule.js'
 import { useBriefing } from './hooks/useBriefing.js'
 import { timeOfDayLabel } from './lib/greeting.js'
 import { triggerHaptic } from './lib/haptics.js'
+
+// How far the overlay's own position:relative anchor sits inset from
+// this card's actual outer edges (outer card padding 20 + the cardAlt
+// strip's own 16px horizontal padding) — negated so the overlay spans
+// the card's full width instead of just the anchor's narrower one. A
+// narrower overlay was the rendering bug: Calendar's card below (which
+// spans the full column width) peeked out past the overlay's edges,
+// reading as bleed-through/clipping rather than a solid panel.
+const HORIZONTAL_INSET = 20 + 16
 
 function Label({ children }) {
   return (
@@ -18,11 +26,15 @@ function Label({ children }) {
     of pushing Calendar/Grades down the page — a genuinely different
     interaction from mobile's push-down collapse, so this is a new
     component rather than a breakpoint-conditional fork of the shared one.
-    Mobile's DashboardCard/BriefingSection (TodayScreen.jsx) are untouched. */
-export default function DesktopScheduleCard() {
+    Mobile's DashboardCard/BriefingSection (TodayScreen.jsx) are untouched.
+
+    Batch 10: `expanded`/`onToggleExpand` are controlled props (driven by
+    the shared useExpandDim() mechanism in DesktopApp.jsx) instead of
+    local state, so expanding this now dims columns 1/3 like Ask Clark
+    and Calendar do. */
+export default function DesktopScheduleCard({ expanded, onToggleExpand }) {
   const { dayType, currentPeriod } = useSchedule()
   const { briefing, generating, generate } = useBriefing()
-  const [expanded, setExpanded] = useState(false)
 
   const periodDisplay = currentPeriod
     ? { label: currentPeriod.status === 'now' ? `Now · ${currentPeriod.period}` : `Next · ${currentPeriod.period}`, name: currentPeriod.className, time: currentPeriod.remaining, next: currentPeriod.nextClass }
@@ -54,7 +66,7 @@ export default function DesktopScheduleCard() {
         {/* Briefing — position:relative anchor so the expanded panel can
             float directly below this row without displacing anything. */}
         <div style={{ position: 'relative', marginTop: 14 }}>
-          <div onClick={() => { triggerHaptic(); setExpanded(e => !e) }} style={{ cursor: 'pointer' }}>
+          <div onClick={() => { triggerHaptic(); onToggleExpand() }} style={{ cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Label>{timeOfDayLabel()}</Label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
@@ -77,9 +89,13 @@ export default function DesktopScheduleCard() {
 
           {expanded && (
             <div style={{
-              position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 8, zIndex: 6,
+              position: 'absolute', top: '100%', left: -HORIZONTAL_INSET, right: -HORIZONTAL_INSET, marginTop: 8, zIndex: 20,
               background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14,
-              boxShadow: '0 14px 34px rgba(20,18,14,0.18)', padding: '14px 16px',
+              boxShadow: '0 18px 44px rgba(20,18,14,0.28)', padding: '16px 20px',
+              // Fully opaque — no backdrop-filter/translucency here, this
+              // is a flat solid panel (Batch 8 rule) that must cleanly
+              // cover Calendar's card underneath, not blend with it.
+              opacity: 1,
             }}>
               <p style={{ margin: 0, fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, fontWeight: 480, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
                 {briefingText}

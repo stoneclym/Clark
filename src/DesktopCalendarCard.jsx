@@ -16,8 +16,13 @@ function clarkYearMonth() {
     the mobile Calendar tab (CalendarSheet.jsx/calendarShared.jsx), but a
     new component since desktop shows just the grid at normal size and
     only reveals the day-detail panel once expanded (absorbing Grades'
-    space below it), rather than always showing both together. */
-export default function DesktopCalendarCard({ expanded, onToggleExpand }) {
+    space below it), rather than always showing both together.
+
+    `fillHeight` (Batch 10) is Grades' own last-measured height, passed
+    down from DesktopColumn2 — the day-detail panel uses it as its
+    min-height so expanding actually fills the space Grades vacated
+    instead of leaving a shorter stub. */
+export default function DesktopCalendarCard({ expanded, onToggleExpand, fillHeight }) {
   const { tasks } = useTasks()
   const { clubs } = useClubs()
   const { settings } = useSchedule()
@@ -104,7 +109,7 @@ export default function DesktopCalendarCard({ expanded, onToggleExpand }) {
       </div>
 
       {expanded && (
-        <div style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginTop: 16, minHeight: 300 }}>
+        <div style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginTop: 16, minHeight: fillHeight, boxSizing: 'border-box' }}>
           <DayAgenda iso={selectedISO} entry={monthData.get(selectedISO)} today={today} />
         </div>
       )}

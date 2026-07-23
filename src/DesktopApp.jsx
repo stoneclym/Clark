@@ -1,85 +1,55 @@
-import { useState } from 'react'
-import DesktopHeader from './DesktopHeader.jsx'
 import DesktopColumn1 from './DesktopColumn1.jsx'
 import DesktopColumn2 from './DesktopColumn2.jsx'
 import DesktopColumn3 from './DesktopColumn3.jsx'
 import DesktopClubs from './DesktopClubs.jsx'
+import { useExpandDim } from './lib/useExpandDim.js'
+import { SPACE } from './lib/spacing.js'
 
-const GRID_COLUMNS = 'repeat(3, 1fr)'
-const GRID_GAP = 24
+/** Desktop (>=1024px) layout — one continuous scrollable page: a
+    three-column dashboard grid (the header is the first item of column
+    1's own stack, not a separate row — see DesktopColumn1) and a
+    full-width Clubs band below it. No tab bar, no sheets, no Liquid
+    Glass (flat/solid soft-shadow cards, per Batch 8) — this is a second,
+    independent layout, not a replacement for the mobile one, which
+    App.jsx renders unchanged below 1024px.
 
-/** Desktop (>=1024px) layout — one continuous scrollable page: header,
-    a three-column dashboard grid, and a full-width Clubs band below it.
-    No tab bar, no sheets, no Liquid Glass (flat/solid soft-shadow cards,
-    per Batch 8) — this is a second, independent layout, not a
-    replacement for the mobile one, which App.jsx renders unchanged
-    below 1024px.
-
-    Batch 9 root fix: the header row and the content row are two rows of
-    the SAME CSS Grid (not a separate flex row above an unrelated grid),
-    so column widths can never drift between them — the header card is
-    explicitly placed in column 1's track, nothing more. */
+    Batch 10: exactly one grid row now (3 auto-placed columns, no
+    gridColumn bookkeeping needed), with `align-items: stretch` (the
+    grid default) so columns 1 and 3 stretch to match column 2's natural
+    height — the reference height, since Calendar's grid is a large
+    fixed element — and one shared useExpandDim() hook drives all three
+    expand-in-place interactions (Ask Clark, Briefing, Calendar)
+    identically instead of three one-off implementations. */
 export default function DesktopApp({ onOpenSettings, onLock }) {
-  const [askExpanded, setAskExpanded] = useState(false)
-  const [calendarExpanded, setCalendarExpanded] = useState(false)
-
-  // Only one column expands at a time — opening one collapses the other,
-  // so the "dim the other two columns" behavior always stays coherent.
-  const toggleAsk = () => setAskExpanded(e => {
-    const next = !e
-    if (next) setCalendarExpanded(false)
-    return next
-  })
-  const toggleCalendar = () => setCalendarExpanded(e => {
-    const next = !e
-    if (next) setAskExpanded(false)
-    return next
-  })
-  // Tapping the dimmed area of whichever columns aren't expanded closes
-  // whichever is open — only one can ever be true, so this is safe from
-  // either side.
-  const dismissExpanded = () => {
-    setAskExpanded(false)
-    setCalendarExpanded(false)
-  }
+  const { isExpanded, isDimmed, toggle, collapse } = useExpandDim()
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
       <div style={{
-        display: 'grid', gridTemplateColumns: GRID_COLUMNS, gap: GRID_GAP,
-        padding: '28px 32px 32px',
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: SPACE.column,
+        padding: `${SPACE.section}px 32px 32px`,
       }}>
-        <div style={{ gridColumn: '1', gridRow: '1' }}>
-          <DesktopHeader
-            onOpenSettings={onOpenSettings}
-            onLock={onLock}
-            askExpanded={askExpanded}
-            onToggleAsk={toggleAsk}
-          />
-        </div>
-
-        <div style={{ gridColumn: '1', gridRow: '2' }}>
-          <DesktopColumn1
-            askExpanded={askExpanded}
-            onCloseAsk={() => setAskExpanded(false)}
-            dimmed={calendarExpanded}
-            onDismiss={dismissExpanded}
-          />
-        </div>
-        <div style={{ gridColumn: '2', gridRow: '2' }}>
-          <DesktopColumn2
-            calendarExpanded={calendarExpanded}
-            onToggleCalendar={toggleCalendar}
-            dimmed={askExpanded}
-            onDismiss={dismissExpanded}
-          />
-        </div>
-        <div style={{ gridColumn: '3', gridRow: '2' }}>
-          <DesktopColumn3
-            dimmed={askExpanded || calendarExpanded}
-            onDismiss={dismissExpanded}
-          />
-        </div>
+        <DesktopColumn1
+          onOpenSettings={onOpenSettings}
+          onLock={onLock}
+          askExpanded={isExpanded('ask')}
+          onToggleAsk={() => toggle('ask')}
+          onCloseAsk={collapse}
+          dimmed={isDimmed(['ask'])}
+          onDismiss={collapse}
+        />
+        <DesktopColumn2
+          briefingExpanded={isExpanded('briefing')}
+          onToggleBriefing={() => toggle('briefing')}
+          calendarExpanded={isExpanded('calendar')}
+          onToggleCalendar={() => toggle('calendar')}
+          dimmed={isDimmed(['briefing', 'calendar'])}
+          onDismiss={collapse}
+        />
+        <DesktopColumn3
+          dimmed={isDimmed([])}
+          onDismiss={collapse}
+        />
       </div>
 
       <DesktopClubs />

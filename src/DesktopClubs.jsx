@@ -1,4 +1,5 @@
 import { useClubs } from './hooks/useClubs.js'
+import { SPACE } from './lib/spacing.js'
 
 const ICON_COMMON = { width: 26, height: 26, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }
 
@@ -61,7 +62,7 @@ export default function DesktopClubs() {
         <div style={{ fontSize: 13, color: 'var(--muted)' }}>{leadershipCount} leadership roles</div>
       </div>
 
-      <div style={{ display: 'flex', gap: 18 }}>
+      <div style={{ display: 'flex', gap: SPACE.card }}>
         {clubs.map(club => {
           const Icon = iconFor(club.name)
           return (
