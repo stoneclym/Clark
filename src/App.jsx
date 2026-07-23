@@ -11,7 +11,9 @@ import SettingsScreen from './SettingsScreen.jsx'
 import SetupScreen from './SetupScreen.jsx'
 import { supabase, invokeErrorMessage } from './lib/supabase.js'
 import { clearCredentialId } from './lib/webauthn.js'
+import { useIsDesktop } from './lib/useBreakpoint.js'
 import LockScreen from './LockScreen.jsx'
+import DesktopApp from './DesktopApp.jsx'
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
@@ -60,6 +62,7 @@ function systemPrefersDark() {
 }
 
 export default function App() {
+  const isDesktop = useIsDesktop()
   const [screen, setScreen] = useState('today')
   const [previousScreen, setPreviousScreen] = useState('today')
   const [dark, setDark] = useState(systemPrefersDark)
@@ -206,6 +209,43 @@ export default function App() {
       <div className="app-shell">
         <div className="app-frame" style={themeStyle}>
           <LockScreen onUnlock={handleUnlock} />
+        </div>
+      </div>
+    )
+  }
+
+  // Desktop (>=1024px): a completely separate layout (Batch 8) — no tab
+  // bar, no sheets, no glass. Settings/Setup stay as the same full-page
+  // overlays either way; everything else renders via DesktopApp instead
+  // of the mobile screen tree below.
+  if (isDesktop) {
+    return (
+      <div className="app-shell">
+        <div className="app-frame" style={themeStyle}>
+          {oauthMessage && (
+            <div
+              onClick={() => setOauthMessage(null)}
+              style={{
+                position: 'absolute', top: 12, left: 12, right: 12, zIndex: 50,
+                background: oauthMessage.type === 'error' ? 'rgba(192,57,43,0.95)' : 'var(--accent)',
+                color: '#fff', borderRadius: 12, padding: '12px 16px',
+                fontSize: 13, lineHeight: 1.4, cursor: 'pointer',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+              }}
+            >
+              {oauthMessage.text}
+            </div>
+          )}
+          {screen === 'settings' ? (
+            <SettingsScreen onBack={() => setScreen(previousScreen)} />
+          ) : screen === 'setup' ? (
+            <SetupScreen onComplete={() => { setAuthed(true); setScreen('today') }} />
+          ) : (
+            <DesktopApp
+              onOpenSettings={() => { setPreviousScreen(screen); setScreen('settings') }}
+              onLock={handleLock}
+            />
+          )}
         </div>
       </div>
     )

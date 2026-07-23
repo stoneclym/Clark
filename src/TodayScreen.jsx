@@ -24,7 +24,7 @@ function Label({ children }) {
 
 function Card({ children }) {
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)' }}>
+    <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, padding: 20, boxShadow: 'var(--card-shadow)' }}>
       {children}
     </div>
   )
@@ -102,7 +102,7 @@ function BriefingSection({ briefing, generating, generate }) {
 }
 
 // ─── Dashboard Card ─────────────────────────────────────────────
-function DashboardCard({ priorities, toggleTask }) {
+export function DashboardCard({ priorities, toggleTask }) {
   const { dayType, currentPeriod, dateLabel } = useSchedule()
   const { briefing, generating, generate } = useBriefing()
 
@@ -165,7 +165,7 @@ function DashboardCard({ priorities, toggleTask }) {
 }
 
 // ─── Brain Dump Card ────────────────────────────────────────────
-function BrainDumpCard({ onParsed }) {
+export function BrainDumpCard({ onParsed }) {
   const [text, setText] = useState('')
   const [status, setStatus] = useState(null) // null | 'parsing' | 'done' | 'error'
   const [lastResult, setLastResult] = useState(null)
@@ -301,7 +301,7 @@ function ClassSection({ label, tasks, toggleTask, expanded, onToggle }) {
   )
 }
 
-function TasksCard({ tasks, toggleTask, filter, onFilter }) {
+export function TasksCard({ tasks, toggleTask, filter, onFilter }) {
   const [expandedClasses, setExpandedClasses] = useState({})
   const toggleClass = (label) => setExpandedClasses(prev => ({ ...prev, [label]: !prev[label] }))
 
@@ -420,7 +420,7 @@ function gradeNumber(percentage) {
   return value ? value[0] : '—'
 }
 
-function GradesCard() {
+export function GradesCard() {
   const { grades } = useGrades()
   const formattedGrades = FORMAL_GRADE_ORDER.map(displayName => {
     const match = grades.find(g => gradeDisplayName(g.class_name) === displayName)

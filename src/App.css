@@ -59,6 +59,26 @@ button {
   }
 }
 
+/* ─── Desktop (>=1024px) ────────────────────────────────────────────
+   Undoes the 520px "phone mockup" treatment above — desktop gets a
+   full-bleed dashboard layout instead, so the app-frame goes back to
+   filling the real viewport. 520-1023px (tablet) keeps the phone-mockup
+   mobile layout entirely as-is; only >=1024px switches. */
+@media (min-width: 1024px) {
+  .app-shell {
+    padding: 0;
+    align-items: stretch;
+  }
+  .app-frame {
+    width: 100%;
+    max-width: none;
+    min-height: 100vh;
+    border-radius: 0;
+    overflow: visible;
+    box-shadow: none;
+  }
+}
+
 .clark-markdown > *:last-child {
   margin-bottom: 0 !important;
 }
@@ -74,6 +94,25 @@ button {
 @media (prefers-reduced-motion: reduce) {
   :root {
     --spring: 120ms linear;
+  }
+}
+
+/* ─── Card elevation ──────────────────────────────────────────────
+   Mobile cards use a hairline border + a barely-there shadow. Desktop
+   (Batch 8) wants flat, solid, soft-shadow-only cards with no border —
+   reusing the exact same mobile card components (Card/DashboardCard/
+   BrainDumpCard/TasksCard/GradesCard in TodayScreen.jsx) rather than
+   forking them, so this is the one thing about them that's breakpoint-
+   aware, via plain CSS custom properties (invisible to mobile, which
+   never matches the >=1024px query). */
+:root {
+  --card-border: 1px solid var(--border);
+  --card-shadow: 0 1px 2px rgba(40,36,28,0.05);
+}
+@media (min-width: 1024px) {
+  :root {
+    --card-border: none;
+    --card-shadow: 0 4px 20px rgba(40,36,28,0.08);
   }
 }
 
