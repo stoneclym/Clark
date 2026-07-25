@@ -1,3 +1,5 @@
+import { triggerHaptic } from './lib/haptics.js'
+
 export default function Header({ onOpenSettings, onLock }) {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -9,7 +11,12 @@ export default function Header({ onOpenSettings, onLock }) {
       borderBottom: '1px solid var(--border)',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingBottom: 14 }}>
-        <div>
+        <div
+          onClick={() => { triggerHaptic(); window.location.reload() }}
+          role="button"
+          aria-label="Refresh Clark"
+          style={{ cursor: 'pointer' }}
+        >
           <div style={{
             fontFamily: "'Source Serif 4', Georgia, serif",
             fontSize: 26, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1,

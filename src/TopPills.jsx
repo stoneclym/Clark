@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { fetchWeather, SCHOOL_LOCATION_LABEL } from './lib/weather.js'
 import { QUICK_LINKS, openApp } from './lib/quickLinks.js'
 import { useReducedMotion } from './lib/motionPrefs.js'
-import { triggerHaptic } from './lib/haptics.js'
+import { triggerHaptic, isHapticSwitchElement } from './lib/haptics.js'
 
 function WeatherIcon({ icon }) {
   const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
@@ -58,10 +58,24 @@ function AppsPill() {
   const rootRef = useRef(null)
   const contentRef = useRef(null)
   const [maxHeight, setMaxHeight] = useState(0)
+  // The full open height, measured once up front (not gated on `open`) —
+  // see the glass filler below for why.
+  const [contentHeight, setContentHeight] = useState(0)
 
   useEffect(() => {
     if (!open) return
     const onDocClick = (e) => {
+      // triggerHaptic() (called by this very pill's own onClick, below)
+      // programmatically clicks a hidden <label>/<input> pair appended
+      // to document.body for the iOS haptic-switch trick — clicking a
+      // label also auto-fires a click on its associated checkbox, and
+      // both of those synthetic clicks bubble to `document` exactly
+      // like a real click would. Without this guard they were briefly
+      // misread as "the user clicked outside", forcing setOpen(false)
+      // a split second before this pill's own toggle ran and flipped it
+      // back open — net effect: clicking the pill to close it never
+      // actually closed anything.
+      if (isHapticSwitchElement(e.target)) return
       if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false)
     }
     document.addEventListener('click', onDocClick, true)
@@ -72,6 +86,21 @@ function AppsPill() {
     if (open && contentRef.current) setMaxHeight(contentRef.current.scrollHeight)
     else setMaxHeight(0)
   }, [open])
+
+  // Measured once on mount (independent of `open`) so the glass filler
+  // below is never actually resized during the open/close animation —
+  // resizing a backdrop-filter element while it animates is what caused
+  // the dropdown to render fully transparent for the first frame or two
+  // before the blur caught up. Giving it a fixed, correct size from the
+  // very start lets the browser composite the blur once, in advance,
+  // while it's still invisible (clipped to 0 by the wrapper below).
+  useEffect(() => {
+    if (!contentRef.current) return
+    setContentHeight(contentRef.current.scrollHeight)
+    document.fonts?.ready?.then(() => {
+      if (contentRef.current) setContentHeight(contentRef.current.scrollHeight)
+    })
+  }, [])
 
   return (
     <div ref={rootRef} style={{ flex: 1, position: 'relative' }}>
@@ -108,8 +137,12 @@ function AppsPill() {
         }}
       >
         {/* Plain filler clipped by the wrapper's own overflow:hidden — see
-            the App.css .glass comment. */}
-        <div className="glass" style={{ position: 'absolute', inset: 0 }} />
+            the App.css .glass comment. Fixed to the full content height
+            (not inset:0, which would tie it to the wrapper's own
+            currently-animating maxHeight) so this backdrop-filter layer
+            never itself changes size during the open/close transition —
+            see the contentHeight effect above. */}
+        <div className="glass" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: contentHeight }} />
         <div ref={contentRef} style={{ position: 'relative' }}>
           {QUICK_LINKS.map((ql, i) => {
             const delay = reducedMotion ? 0 : (open ? i * 30 : 0)
