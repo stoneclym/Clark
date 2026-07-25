@@ -18,9 +18,18 @@ export default function AskScreen({ onBack }) {
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const prevCountRef = useRef(messages.length)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Skip the mount-time fire (prevCountRef starts equal to the
+    // initial length) — scrolling then bubbles up through ancestor
+    // scroll containers and jumps the whole page, since the greeting
+    // is already the only thing in view. Only autoscroll once an actual
+    // message gets appended to the conversation.
+    if (messages.length > prevCountRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+    prevCountRef.current = messages.length
   }, [messages])
 
   const send = useCallback(async (text) => {

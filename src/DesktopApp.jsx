@@ -3,7 +3,7 @@ import DesktopColumn1 from './DesktopColumn1.jsx'
 import DesktopColumn2 from './DesktopColumn2.jsx'
 import DesktopColumn3 from './DesktopColumn3.jsx'
 import DesktopClubs from './DesktopClubs.jsx'
-import { useExpandDim } from './lib/useExpandDim.js'
+import { useAccordion } from './lib/useAccordion.js'
 import { SPACE } from './lib/spacing.js'
 
 // Reasonable pre-measurement height for columns 1/3, so they never
@@ -19,10 +19,12 @@ const FALLBACK_COLUMN_HEIGHT = 700
     independent layout, not a replacement for the mobile one, which
     App.jsx renders unchanged below 1024px.
 
-    Batch 10: exactly one grid row now (3 auto-placed columns, no
-    gridColumn bookkeeping needed) and one shared useExpandDim() hook
-    drives all three expand-in-place interactions (Ask Clark, Briefing,
-    Calendar) identically instead of three one-off implementations.
+    Expand behavior: Briefing and Calendar are in-flow accordions (see
+    DesktopScheduleCard/DesktopCalendarCard) that grow column 2's own
+    height in normal document flow — no overlay, no dimming of any
+    column. useAccordion() only coordinates mutual exclusivity between
+    those two. Ask Clark (column 1) is a fully independent local toggle
+    with no relationship to this hook at all — see DesktopColumn1.
 
     Column heights: column 2's rendered height (measured in
     DesktopColumn2 and reported here) is the reference height for the
@@ -30,9 +32,10 @@ const FALLBACK_COLUMN_HEIGHT = 700
     rather than relying on grid stretch, so their own flex fillers
     (Tasks, Inbox) resolve to a definite height and scroll internally
     instead of growing past it — see DesktopColumn2.jsx for why stretch
-    alone wasn't sufficient. */
+    alone wasn't sufficient. This also means columns 1/3 grow along with
+    column 2 when Briefing/Calendar expand, keeping all three level. */
 export default function DesktopApp({ onOpenSettings, onLock }) {
-  const { isExpanded, isDimmed, toggle, collapse } = useExpandDim()
+  const { isExpanded, toggle, collapse } = useAccordion()
   const [columnHeight, setColumnHeight] = useState(FALLBACK_COLUMN_HEIGHT)
   const handleColumn2Height = useCallback((height) => setColumnHeight(height), [])
 
@@ -45,11 +48,6 @@ export default function DesktopApp({ onOpenSettings, onLock }) {
         <DesktopColumn1
           onOpenSettings={onOpenSettings}
           onLock={onLock}
-          askExpanded={isExpanded('ask')}
-          onToggleAsk={() => toggle('ask')}
-          onCloseAsk={collapse}
-          dimmed={isDimmed(['ask'])}
-          onDismiss={collapse}
           columnHeight={columnHeight}
         />
         <DesktopColumn2
@@ -57,13 +55,10 @@ export default function DesktopApp({ onOpenSettings, onLock }) {
           onToggleBriefing={() => toggle('briefing')}
           calendarExpanded={isExpanded('calendar')}
           onToggleCalendar={() => toggle('calendar')}
-          dimmed={isDimmed(['briefing', 'calendar'])}
-          onDismiss={collapse}
+          onCollapse={collapse}
           onHeightChange={handleColumn2Height}
         />
         <DesktopColumn3
-          dimmed={isDimmed([])}
-          onDismiss={collapse}
           columnHeight={columnHeight}
         />
       </div>

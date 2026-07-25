@@ -38,20 +38,13 @@ function AppsRow() {
     DesktopColumn2 — see DesktopApp.jsx), scrolling internally within
     that fixed height to reveal the rest of the ~20 most recent emails
     instead of growing the whole column past it. */
-export default function DesktopColumn3({ dimmed, onDismiss, columnHeight }) {
+export default function DesktopColumn3({ columnHeight }) {
   return (
-    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: SPACE.card, height: columnHeight }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: SPACE.card, height: columnHeight, minWidth: 0 }}>
       <AppsRow />
       <div style={{ flex: 1, minHeight: 0, background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', overflowY: 'auto' }}>
         <InboxSheetContent focusEmail={null} />
       </div>
-
-      {dimmed && (
-        <div
-          onClick={onDismiss}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(20,18,14,0.35)', borderRadius: 22, transition: 'opacity var(--spring)', cursor: 'pointer' }}
-        />
-      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTasks } from './hooks/useTasks.js'
 import { useClubs } from './hooks/useClubs.js'
 import { useSchedule } from './hooks/useSchedule.js'
@@ -12,22 +12,27 @@ function clarkYearMonth() {
   return { year: y, monthIndex: m - 1 }
 }
 
-/** Desktop's Calendar card — same underlying month/day-detail logic as
-    the mobile Calendar tab (CalendarSheet.jsx/calendarShared.jsx), but a
-    new component since desktop shows just the grid at normal size and
-    only reveals the day-detail panel once expanded (absorbing Grades'
-    space below it), rather than always showing both together.
+/** Desktop's Calendar card — same underlying month/day-detail logic
+    (buildMonthData, which already sorts tests/others by the Tasks-card
+    priority order on each date's deadline-logic date) as the mobile
+    Calendar tab. Clicking a date expands an in-flow accordion below the
+    month grid showing that date's full agenda — same max-height/
+    scrollHeight transition pattern as mobile's BriefingSection — which
+    grows this card's own height in normal document flow, pushing Grades
+    further down column 2. No overlay, no absolute positioning, no
+    dimming of anything.
 
-    `fillHeight` (Batch 10) is Grades' own last-measured height, passed
-    down from DesktopColumn2 — the day-detail panel uses it as its
-    min-height so expanding actually fills the space Grades vacated
-    instead of leaving a shorter stub. */
-export default function DesktopCalendarCard({ expanded, onToggleExpand, fillHeight }) {
+    `expanded`/`onToggleExpand` are controlled props, driven by the
+    mutual-exclusion accordion hook in DesktopApp.jsx, so expanding this
+    collapses Briefing if it was open (and vice versa). */
+export default function DesktopCalendarCard({ expanded, onToggleExpand }) {
   const { tasks } = useTasks()
   const { clubs } = useClubs()
   const { settings } = useSchedule()
   const [{ year, monthIndex }, setMonth] = useState(clarkYearMonth)
   const [selectedISO, setSelectedISO] = useState(todayISO())
+  const contentRef = useRef(null)
+  const [maxHeight, setMaxHeight] = useState(0)
 
   const today = todayISO()
   const monthData = useMemo(
@@ -35,6 +40,14 @@ export default function DesktopCalendarCard({ expanded, onToggleExpand, fillHeig
     [year, monthIndex, tasks, clubs, settings],
   )
   const weeks = useMemo(() => monthGrid(year, monthIndex), [year, monthIndex])
+
+  useEffect(() => {
+    if (!expanded || !contentRef.current) { setMaxHeight(0); return }
+    setMaxHeight(contentRef.current.scrollHeight + 8)
+    document.fonts?.ready?.then(() => {
+      if (contentRef.current) setMaxHeight(contentRef.current.scrollHeight + 8)
+    })
+  }, [expanded, selectedISO, monthData])
 
   const shiftMonth = (delta) => {
     setMonth(prev => {
@@ -49,7 +62,7 @@ export default function DesktopCalendarCard({ expanded, onToggleExpand, fillHeig
   const isoFor = (day) => `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
   return (
-    <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', padding: 20 }}>
+    <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, boxShadow: 'var(--card-shadow)', padding: 20, boxSizing: 'border-box' }}>
       <div onClick={() => { triggerHaptic(); onToggleExpand() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faint)' }}>
           Calendar
@@ -80,7 +93,8 @@ export default function DesktopCalendarCard({ expanded, onToggleExpand, fillHeig
               return (
                 <div
                   key={di}
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation()
                     triggerHaptic()
                     setSelectedISO(iso)
                     if (!expanded) onToggleExpand()
@@ -108,11 +122,11 @@ export default function DesktopCalendarCard({ expanded, onToggleExpand, fillHeig
         ))}
       </div>
 
-      {expanded && (
-        <div style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginTop: 16, minHeight: fillHeight, boxSizing: 'border-box' }}>
+      <div style={{ overflow: 'hidden', maxHeight, opacity: expanded ? 1 : 0, transition: 'max-height 0.25s ease, opacity 0.2s ease' }}>
+        <div ref={contentRef} style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px', marginTop: 16, boxSizing: 'border-box' }}>
           <DayAgenda iso={selectedISO} entry={monthData.get(selectedISO)} today={today} />
         </div>
-      )}
+      </div>
     </div>
   )
 }

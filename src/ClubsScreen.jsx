@@ -27,7 +27,7 @@ export default function ClubsScreen() {
   )
 }
 
-function ClubCard({ club, onToggleTask, onDeleteMeeting }) {
+export function ClubCard({ club, onToggleTask, onDeleteMeeting }) {
   const pendingCount = club.club_tasks?.filter(t => !t.done).length ?? 0
 
   return (
