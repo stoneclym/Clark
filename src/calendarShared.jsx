@@ -43,9 +43,6 @@ export function SheetTask({ task, today, iso }) {
           )}
         </div>
       </div>
-      {task.priority && (
-        <span style={{ fontSize: 12, color: 'var(--accentText)', flexShrink: 0 }}>★</span>
-      )}
     </div>
   )
 }

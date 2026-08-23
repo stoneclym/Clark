@@ -1,4 +1,5 @@
 import { useClubs } from './hooks/useClubs.js'
+import { useSchedule } from './hooks/useSchedule.js'
 import { ClubCard } from './ClubsScreen.jsx'
 import { SPACE } from './lib/spacing.js'
 
@@ -9,6 +10,7 @@ import { SPACE } from './lib/spacing.js'
     single-column stack. */
 export default function DesktopClubs() {
   const { clubs, toggleClubTask, deleteMeeting } = useClubs()
+  const { settings } = useSchedule()
 
   return (
     <div style={{ padding: '36px 32px 48px' }}>
@@ -21,7 +23,7 @@ export default function DesktopClubs() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: SPACE.card }}>
         {clubs.map(club => (
-          <ClubCard key={club.id} club={club} onToggleTask={toggleClubTask} onDeleteMeeting={deleteMeeting} />
+          <ClubCard key={club.id} club={club} onToggleTask={toggleClubTask} onDeleteMeeting={deleteMeeting} settings={settings} />
         ))}
       </div>
     </div>

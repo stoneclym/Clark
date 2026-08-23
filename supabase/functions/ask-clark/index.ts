@@ -163,7 +163,6 @@ const tools: Anthropic.Tool[] = [
         tag: { type: 'string', description: 'Short tag like the class name, or the exact club name if this is for a club: "Student Council", "Beta Club", "National Honor Society", or "Spanish Club"' },
         kind: { type: 'string', enum: ['assignment', 'test', 'event'], description: 'What the item is: "test" for tests/quizzes/exams, "event" for things attended at a set time, "assignment" for anything produced or completed' },
         due_date: { type: 'string', description: 'The user\'s scheduling words VERBATIM: "today", "next class", "Friday", "tomorrow at 4 PM". Do not calculate or reword dates — deterministic code computes the real date.' },
-        priority: { type: 'boolean', description: 'Whether this is a top priority task' },
       },
       required: ['title'],
     },
@@ -208,7 +207,7 @@ Deno.serve(async (req) => {
   )
 
   const [tasksRes, gradesRes, emailsRes, clubsRes, settingsRes] = await Promise.all([
-    supabase.from('tasks').select('id, title, category, tag, due_date, due_at, priority, done').eq('done', false).limit(30),
+    supabase.from('tasks').select('id, title, category, tag, due_date, due_at, done').eq('done', false).limit(30),
     supabase.from('grades').select('class_name, score, percentage, note').order('class_order'),
     supabase.from('emails').select('from_name, subject, snippet, received_at').order('received_at', { ascending: false }).limit(5),
     supabase.from('clubs').select('id, name, role, next_meeting, club_tasks(task_text, done)').order('display_order'),
@@ -231,7 +230,7 @@ SCHEDULE (computed, trust these facts):
 ${scheduleContext || 'No schedule configured.'}
 
 PENDING TASKS (${tasks.length}):
-${tasks.map(t => `- [${t.id}] ${t.title} [${t.tag || t.category}] due ${t.due_at || t.due_date || 'no date'}${t.priority ? ' ★ priority' : ''}`).join('\n') || 'None'}
+${tasks.map(t => `- [${t.id}] ${t.title} [${t.tag || t.category}] due ${t.due_at || t.due_date || 'no date'}`).join('\n') || 'None'}
 
 GRADES:
 ${grades.map(g => `- ${g.class_name}: ${g.score || '—'} (${g.percentage || '—'})${g.note ? ' — ' + g.note : ''}`).join('\n') || 'None'}
@@ -286,13 +285,15 @@ ${context}`
         const club = matchClub(`${input.title || ''} ${input.tag || ''} ${input.category || ''}`, clubs)
 
         if (club) {
+          const clubKind = inferKind(title, dueText)
+          const clubDeadline = computeDeadline({ kind: clubKind, dueText, title }, settings)
           const { error } = await supabase.from('club_tasks').insert({
             club_id: (club as { id: string }).id,
-            task_text: dueText ? `${title} (due ${dueText})` : title,
+            task_text: title,
+            ...clubDeadline,
           })
           result = error ? `Error creating club task: ${error.message}` : `Task "${title}" added to ${(club as { name: string }).name}.`
         } else {
-          const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
           const tag = normalizeClassLabel(input.tag)
           const kind = TASK_KINDS.includes(String(input.kind))
             ? String(input.kind)
@@ -309,8 +310,6 @@ ${context}`
             tag,
             kind,
             ...deadline,
-            priority: (input.priority as boolean) || false,
-            priority_rank: input.priority ? (count || 0) + 1 : null,
             source: 'Ask Clark',
           }).select().single()
           result = error ? `Error creating task: ${error.message}` : `Task "${title}" added successfully.`

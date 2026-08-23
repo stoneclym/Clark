@@ -251,13 +251,13 @@ Deno.serve(async (req) => {
 Return ONLY valid JSON with this shape:
 {
   "tasks": [
-    { "title": string, "category": "Class"|"Club"|"College", "tag": string, "kind": "assignment"|"test"|"event", "due_date": string, "priority": boolean }
+    { "title": string, "category": "Class"|"Club"|"College", "tag": string, "kind": "assignment"|"test"|"event", "due_date": string }
   ],
   "grades": [
     { "class_name": string, "percentage": string, "note": string|null }
   ],
   "club_tasks": [
-    { "club_name": string, "task_text": string }
+    { "club_name": string, "task_text": string, "due_date": string|null }
   ],
   "club_meetings": [
     { "club_name": string, "when": string }
@@ -267,11 +267,10 @@ Return ONLY valid JSON with this shape:
 Rules:
 - "due_date" must quote the user's own scheduling words VERBATIM: "today", "next class", "before class", "Friday", "tomorrow at 4 PM". Do NOT calculate, reword, or resolve dates yourself — deterministic code computes the real date from your extraction.
 - "kind" classifies the item: "test" for tests/quizzes/exams, "event" for things you attend at a set time, "assignment" for anything you produce or complete
-- priority must be a boolean true or false, never a string
 - Do not use status words like "overdue", "late", "today", "tomorrow", or "yesterday" as task tags. Tags are only for a class, club, or category.
 - For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
 - For club_meetings: use when the user announces a club meeting happening at a specific time ("NHS meeting tomorrow at 3:30", "Beta Club meets Friday", "We have a Spanish Club meeting next week"). "when" is the natural-language time. You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
-- For club_tasks: use when the user mentions something they need to DO for a club ("make slides for Spanish Club", "print forms for NHS"). You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
+- For club_tasks: use when the user mentions something they need to DO for a club ("make slides for Spanish Club", "print forms for NHS"). You MUST use the exact club_name from this list: ${clubNames.join(' | ')}. "due_date" follows the same verbatim rule as tasks' due_date, or null if no due date was mentioned.
 - CRITICAL DISTINCTION: A meeting announcement (event on the calendar) → club_meetings. An action item to complete → club_tasks or tasks. NEVER create a generic task for a meeting announcement.
 - Only include keys with items; omit empty arrays
 - No markdown, no explanation — raw JSON only`
@@ -300,26 +299,29 @@ Rules:
   }
 
   const dbErrors: string[] = []
-  const clubTaskInserts: Array<{ club_id: string; task_text: string }> = []
+  const clubTaskInserts: Array<{
+    club_id: string
+    task_text: string
+    due_date?: string | null
+    due_date_calc?: string | null
+    due_at?: string | null
+    original_due_text?: string | null
+  }> = []
 
   // Insert tasks — but first pull out any item that clearly names a club so
   // it lands on that club's card instead of the main tasks list. Claude is
   // told to route club action items to club_tasks itself, but this is a
   // deterministic safety net for when it doesn't.
   if (Array.isArray(parsed.tasks) && parsed.tasks.length) {
-    const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
-    const baseRank = (count || 0) + 1
-
     const plainTasks: Array<Record<string, unknown>> = []
     ;(parsed.tasks as Array<Record<string, unknown>>).forEach((t) => {
       const club = matchClub(`${t.title || ''} ${t.tag || ''} ${t.category || ''}`, clubRows)
       if (club) {
         const title = sentenceCaseTaskTitle(t.title) || 'Untitled task'
         const dueText = enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`)
-        clubTaskInserts.push({
-          club_id: club.id,
-          task_text: dueText ? `${title} (due ${dueText})` : title,
-        })
+        const kind = TASK_KINDS.includes(String(t.kind)) ? String(t.kind) : inferKind(String(t.title || ''), dueText)
+        const deadline = computeDeadline({ kind, dueText, title }, settings)
+        clubTaskInserts.push({ club_id: club.id, task_text: title, ...deadline })
       } else {
         plainTasks.push(t)
       }
@@ -345,8 +347,6 @@ Rules:
             tag,
             kind,
             ...deadline,
-            priority: t.priority === true,
-            priority_rank: t.priority === true ? baseRank + i : null,
             source: 'Brain Dump',
           }
         })
@@ -403,7 +403,11 @@ Rules:
       const clubName = String(ct.club_name || '').trim()
       const clubRow = matchClub(clubName, clubRows)
       if (clubRow) {
-        clubTaskInserts.push({ club_id: clubRow.id, task_text: String(ct.task_text || '').trim() })
+        const taskText = String(ct.task_text || '').trim()
+        const dueText = enrichDueText(ct.due_date, `${taskText} ${text || ''}`)
+        const kind = inferKind(taskText, dueText)
+        const deadline = computeDeadline({ kind, dueText, title: taskText }, settings)
+        clubTaskInserts.push({ club_id: clubRow.id, task_text: taskText, ...deadline })
       } else {
         dbErrors.push(`club_tasks: no club found matching "${clubName}"`)
       }

@@ -102,7 +102,7 @@ function BriefingSection({ briefing, generating, generate }) {
 }
 
 // ─── Dashboard Card ─────────────────────────────────────────────
-export function DashboardCard({ priorities, toggleTask }) {
+export function DashboardCard() {
   const { dayType, currentPeriod, dateLabel } = useSchedule()
   const { briefing, generating, generate } = useBriefing()
 
@@ -133,33 +133,6 @@ export function DashboardCard({ priorities, toggleTask }) {
 
         <BriefingSection briefing={briefing} generating={generating} generate={generate} />
       </div>
-
-      {/* Priorities */}
-      {priorities.length > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Label>Priorities</Label>
-            <div style={{ fontSize: 11, color: 'var(--faint)' }}>Reordered by Clark</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {priorities.map(item => {
-              const dateInfo = getTaskDateInfo(item)
-              return (
-                <div key={item.id} onClick={() => { triggerHaptic(); toggleTask(item.id) }} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
-                  <CheckBox done={item.done} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                      <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)' }}>{dateInfo.label}</span>
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>{item.source}</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </Card>
   )
 }
@@ -309,7 +282,7 @@ export function TasksCard({ tasks, toggleTask, filter, onFilter, fill }) {
   const toggleClass = (label) => setExpandedClasses(prev => ({ ...prev, [label]: !prev[label] }))
 
   const filtered = tasks.filter(t =>
-    filter === 'All' ? true : filter === 'Priority' ? t.priority : filter === 'Club' ? isClubTask(t) : t.category === filter
+    filter === 'All' ? true : filter === 'Club' ? isClubTask(t) : t.category === filter
   )
 
   const classGroups = filter === 'Class'
@@ -332,7 +305,7 @@ export function TasksCard({ tasks, toggleTask, filter, onFilter, fill }) {
         <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{filtered.length} active</div>
       </div>
       <div style={{ display: 'flex', gap: 7, marginTop: 13, flexWrap: 'wrap', flexShrink: 0 }}>
-        {['All', 'Class', 'Club', 'Priority'].map(label => (
+        {['All', 'Class', 'Club'].map(label => (
           <button key={label} onClick={() => onFilter(label)} style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: label === filter ? 'var(--accent)' : 'transparent', color: label === filter ? '#fff' : 'var(--muted)', border: label === filter ? 'none' : '1px solid var(--border)' }}>
             {label}
           </button>
@@ -500,12 +473,12 @@ function InboxCard({ onOpenInbox }) {
 
 // ─── Screen ──────────────────────────────────────────────────────
 export default function TodayScreen({ filter, onFilter, onOpenCalendar, onOpenInbox }) {
-  const { tasks, priorities, toggleTask, refetch } = useTasks()
+  const { tasks, toggleTask, refetch } = useTasks()
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
       <TopPills />
-      <DashboardCard priorities={priorities} toggleTask={toggleTask} />
+      <DashboardCard />
       <BrainDumpCard onParsed={refetch} />
       <TasksCard tasks={tasks} toggleTask={toggleTask} filter={filter} onFilter={onFilter} />
       <CalendarCard tasks={tasks} onOpenCalendar={onOpenCalendar} />

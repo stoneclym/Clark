@@ -14,8 +14,8 @@ function clarkYearMonth() {
 }
 
 /** Desktop's Calendar card — same underlying month/day-detail logic
-    (buildMonthData, which already sorts tests/others by the Tasks-card
-    priority order on each date's deadline-logic date) as the mobile
+    (buildMonthData, which already sorts tests/others by created_at
+    on each date's deadline-logic date) as the mobile
     Calendar tab. Clicking a date expands the day's agenda as an
     absolutely-positioned overlay anchored to this card's own (unpadded,
     position:relative) outer element — spans the card's full width with

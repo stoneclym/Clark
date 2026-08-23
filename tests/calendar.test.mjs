@@ -35,8 +35,6 @@ const task = (over) => ({
   due_date: null,
   due_date_calc: null,
   due_at: null,
-  priority: false,
-  priority_rank: null,
   done: false,
   created_at: '2026-07-01T12:00:00Z',
   ...over,
@@ -108,14 +106,14 @@ test('3+ dot types stack on a future day (blue + purple + green)', () => {
   assert.deepEqual(dayDots(entry), [DOT_COLORS.due, DOT_COLORS.noSchool, DOT_COLORS.meeting])
 })
 
-test('day-sheet "everything else" uses the Tasks-card priority ordering', () => {
+test('day-sheet "everything else" uses created_at ordering', () => {
   const tasks = [
-    task({ id: 'c', title: 'No priority', due_date_calc: '2026-07-10' }),
-    task({ id: 'a', title: 'Priority rank 2', due_date_calc: '2026-07-10', priority: true, priority_rank: 2 }),
-    task({ id: 'b', title: 'Priority rank 1', due_date_calc: '2026-07-10', priority: true, priority_rank: 1 }),
+    task({ id: 'c', title: 'Created third', due_date_calc: '2026-07-10', created_at: '2026-07-01T12:00:02Z' }),
+    task({ id: 'a', title: 'Created first', due_date_calc: '2026-07-10', created_at: '2026-07-01T12:00:00Z' }),
+    task({ id: 'b', title: 'Created second', due_date_calc: '2026-07-10', created_at: '2026-07-01T12:00:01Z' }),
   ]
   const days = buildMonthData({ year: 2026, monthIndex: 6, tasks, clubs: [], settings: SETTINGS, now: NOW })
-  assert.deepEqual(days.get('2026-07-10').others.map(t => t.title), ['Priority rank 1', 'Priority rank 2', 'No priority'])
+  assert.deepEqual(days.get('2026-07-10').others.map(t => t.title), ['Created first', 'Created second', 'Created third'])
 })
 
 test('dates come from stored deadline-engine values, with legacy fallback', () => {

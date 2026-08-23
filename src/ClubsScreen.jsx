@@ -1,7 +1,11 @@
 import { useClubs } from './hooks/useClubs.js'
+import { useSchedule } from './hooks/useSchedule.js'
+import { computeDeadline } from '../supabase/functions/_shared/deadlineEngine.js'
+import { getTaskDateInfo, compareTaskDates, OVERDUE_COLOR } from './lib/taskDates.js'
 
 export default function ClubsScreen() {
   const { clubs, loading, toggleClubTask, deleteMeeting } = useClubs()
+  const { settings } = useSchedule()
 
   if (loading) {
     return (
@@ -21,14 +25,23 @@ export default function ClubsScreen() {
       </div>
 
       {clubs.map(club => (
-        <ClubCard key={club.id} club={club} onToggleTask={toggleClubTask} onDeleteMeeting={deleteMeeting} />
+        <ClubCard key={club.id} club={club} onToggleTask={toggleClubTask} onDeleteMeeting={deleteMeeting} settings={settings} />
       ))}
     </div>
   )
 }
 
-export function ClubCard({ club, onToggleTask, onDeleteMeeting }) {
+// Same date/time formatting logic tasks use (computeDeadline + getTaskDateInfo)
+// so a meeting entered as "Tuesday", "next Wednesday at 4", or "tomorrow at
+// 3:30" always displays in the same normalized format, regardless of phrasing.
+function meetingDateInfo(whenText, settings) {
+  const deadline = computeDeadline({ kind: 'event', dueText: whenText }, settings)
+  return getTaskDateInfo(deadline)
+}
+
+export function ClubCard({ club, onToggleTask, onDeleteMeeting, settings }) {
   const pendingCount = club.club_tasks?.filter(t => !t.done).length ?? 0
+  const meeting = club.next_meeting ? meetingDateInfo(club.next_meeting, settings) : null
 
   return (
     <div style={{
@@ -74,7 +87,7 @@ export function ClubCard({ club, onToggleTask, onDeleteMeeting }) {
               Next meeting
             </div>
             <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 1, color: 'var(--text)' }}>
-              {club.next_meeting}
+              {meeting.label}
             </div>
           </div>
           <button
@@ -96,35 +109,44 @@ export function ClubCard({ club, onToggleTask, onDeleteMeeting }) {
 
       {club.club_tasks?.filter(t => !t.done).length > 0 && (
         <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {club.club_tasks.filter(t => !t.done).map(task => (
-            <div
-              key={task.id}
-              onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, task.done) }}
-              style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer' }}
-            >
-              <div style={{
-                width: 17, height: 17, borderRadius: 5, flexShrink: 0,
-                border: task.done ? 'none' : '1.6px solid var(--borderStrong)',
-                background: task.done ? 'var(--accent)' : 'transparent',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'background 0.15s',
-              }}>
-                {task.done && (
-                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 6l3 3 5-5"/>
-                  </svg>
+          {club.club_tasks.filter(t => !t.done).sort(compareTaskDates).map(task => {
+            const dateInfo = getTaskDateInfo(task)
+            return (
+              <div
+                key={task.id}
+                onClick={(e) => { e.stopPropagation(); onToggleTask(task.id, task.done) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer' }}
+              >
+                <div style={{
+                  width: 17, height: 17, borderRadius: 5, flexShrink: 0,
+                  border: task.done ? 'none' : '1.6px solid var(--borderStrong)',
+                  background: task.done ? 'var(--accent)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background 0.15s',
+                }}>
+                  {task.done && (
+                    <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 6l3 3 5-5"/>
+                    </svg>
+                  )}
+                </div>
+                <span style={{
+                  flex: 1, minWidth: 0,
+                  fontSize: 13.5,
+                  color: task.done ? 'var(--faint)' : 'var(--text)',
+                  textDecoration: task.done ? 'line-through' : 'none',
+                  transition: 'color 0.15s',
+                }}>
+                  {task.task_text}
+                </span>
+                {dateInfo.hasRealDate && (
+                  <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {dateInfo.label}
+                  </span>
                 )}
               </div>
-              <span style={{
-                fontSize: 13.5,
-                color: task.done ? 'var(--faint)' : 'var(--text)',
-                textDecoration: task.done ? 'line-through' : 'none',
-                transition: 'color 0.15s',
-              }}>
-                {task.task_text}
-              </span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
   )
 
   const [{ data: tasks }, { data: grades }, { data: settings }] = await Promise.all([
-    supabase.from('tasks').select('*').eq('done', false).order('priority_rank'),
+    supabase.from('tasks').select('*').eq('done', false).order('created_at', { ascending: true }),
     supabase.from('grades').select('*').order('class_order'),
     supabase.from('settings').select('*').single(),
   ])
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     `Today is ${formatDate()}.`,
     describeScheduleContext(scheduleContext),
     tasks?.length
-      ? `Active tasks (priority order):\n${tasks.map((t: Record<string, unknown>) => `- ${t.title} (due: ${t.due_date}, source: ${t.source})`).join('\n')}`
+      ? `Active tasks:\n${tasks.map((t: Record<string, unknown>) => `- ${t.title} (due: ${t.due_date}, source: ${t.source})`).join('\n')}`
       : 'No active tasks.',
     grades?.length
       ? `Current grades:\n${grades.map((g: Record<string, unknown>) => `- ${g.class_name}: ${g.score}${g.percentage ? ` (${g.percentage})` : ''}`).join('\n')}`

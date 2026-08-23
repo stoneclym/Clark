@@ -57,15 +57,8 @@ export function resolveClubMeetings(clubs, settings, now = new Date()) {
     .filter(Boolean)
 }
 
-// Same priority ordering as the Tasks card applies within a single date.
-function priorityRank(task) {
-  return Number.isFinite(Number(task.priority_rank)) ? Number(task.priority_rank) : Number.MAX_SAFE_INTEGER
-}
-
-export function comparePriority(a, b) {
-  if (a.priority !== b.priority) return a.priority ? -1 : 1
-  const rankDiff = priorityRank(a) - priorityRank(b)
-  if (rankDiff !== 0) return rankDiff
+// Same created_at ordering as the Tasks card applies within a single date.
+export function compareByCreatedAt(a, b) {
   return new Date(a.created_at || 0) - new Date(b.created_at || 0)
 }
 
@@ -137,11 +130,11 @@ export function buildMonthData({ year, monthIndex, tasks, clubs, settings, now =
     entry.meetings.push(meeting)
   }
 
-  // Day-sheet ordering: meetings first, then tests, then the rest by the
-  // Tasks-card priority logic. Meetings/tests keep priority order internally.
+  // Day-sheet ordering: meetings first, then tests, then the rest, each
+  // ordered by created_at same as the Tasks card.
   for (const entry of days.values()) {
-    entry.tests.sort(comparePriority)
-    entry.others.sort(comparePriority)
+    entry.tests.sort(compareByCreatedAt)
+    entry.others.sort(compareByCreatedAt)
   }
 
   return days
