@@ -158,14 +158,21 @@ function periodEnd(p) {
 }
 
 /**
- * Periods for a date, chosen by that date's A/B type.
+ * Periods for a date, chosen by that date's A/B type and weekday variant —
+ * Monday has different block times (it includes homeroom) than
+ * Tuesday–Friday, so each of a_schedule/b_schedule is stored as
+ * `{ monday: [...periods], tuesFri: [...periods] }` rather than a flat
+ * period array. The A/B calculation itself is untouched; this only
+ * decides which stored period list represents "today".
  * @returns {{ dayType: 'A'|'B'|null, periods: Array }}
  */
 export function getScheduleForDate(settings, target) {
   const iso = toISO(target)
   const dayType = getDayType(settings?.first_day, settings?.first_day_type, settings?.no_school_dates || [], iso)
   if (!dayType) return { dayType: null, periods: [] }
-  const periods = (dayType === 'A' ? settings.a_schedule : settings.b_schedule) || []
+  const daySchedule = (dayType === 'A' ? settings.a_schedule : settings.b_schedule) || {}
+  const variant = weekdayOf(iso) === 1 ? 'monday' : 'tuesFri'
+  const periods = daySchedule[variant] || []
   return { dayType, periods }
 }
 

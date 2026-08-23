@@ -34,6 +34,12 @@ const TASK_TITLE_CLASS_PHRASES = [
   'Bio',
   'Lang',
   'TOK',
+  'Principles of Microeconomics',
+  'Principles of Macroeconomics',
+  'Microeconomics',
+  'Macroeconomics',
+  'Micro',
+  'Macro',
 ]
 
 function stripClassPhrases(value: string) {
@@ -109,6 +115,14 @@ const TASK_CLASS_TAGS: Record<string, string> = {
   tok: 'TOK',
   'theory of knowledge': 'TOK',
   'ib theory of knowledge': 'TOK',
+  micro: 'Micro',
+  microeconomics: 'Micro',
+  'principles of microeconomics': 'Micro',
+  'eco 251': 'Micro',
+  macro: 'Macro',
+  macroeconomics: 'Macro',
+  'principles of macroeconomics': 'Macro',
+  'eco 252': 'Macro',
 }
 
 function normalizeClassLabel(value: unknown) {
@@ -163,6 +177,14 @@ const FORMAL_GRADE_NAMES: Record<string, string> = {
   'math analysis and approaches': 'IB Applications and Interpretations',
   'ib applications and interpretations': 'IB Applications and Interpretations',
   'applications and interpretations': 'IB Applications and Interpretations',
+  micro: 'ECO 251 – Principles of Microeconomics',
+  microeconomics: 'ECO 251 – Principles of Microeconomics',
+  'principles of microeconomics': 'ECO 251 – Principles of Microeconomics',
+  'eco 251': 'ECO 251 – Principles of Microeconomics',
+  macro: 'ECO 252 – Principles of Macroeconomics',
+  macroeconomics: 'ECO 252 – Principles of Macroeconomics',
+  'principles of macroeconomics': 'ECO 252 – Principles of Macroeconomics',
+  'eco 252': 'ECO 252 – Principles of Macroeconomics',
 }
 
 const FORMAL_GRADE_ORDER = [
@@ -171,6 +193,8 @@ const FORMAL_GRADE_ORDER = [
   'IB Theory of Knowledge',
   'IB Language and Literature',
   'IB Applications and Interpretations',
+  'ECO 251 – Principles of Microeconomics',
+  'ECO 252 – Principles of Macroeconomics',
 ]
 
 function normalizeClassName(name: unknown) {

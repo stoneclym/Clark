@@ -34,6 +34,12 @@ const TASK_TITLE_CLASS_PHRASES = [
   'Bio',
   'Lang',
   'TOK',
+  'Principles of Microeconomics',
+  'Principles of Macroeconomics',
+  'Microeconomics',
+  'Macroeconomics',
+  'Micro',
+  'Macro',
 ]
 
 function stripClassPhrases(value: string) {
@@ -109,6 +115,14 @@ const TASK_CLASS_TAGS: Record<string, string> = {
   tok: 'TOK',
   'theory of knowledge': 'TOK',
   'ib theory of knowledge': 'TOK',
+  micro: 'Micro',
+  microeconomics: 'Micro',
+  'principles of microeconomics': 'Micro',
+  'eco 251': 'Micro',
+  macro: 'Macro',
+  macroeconomics: 'Macro',
+  'principles of macroeconomics': 'Macro',
+  'eco 252': 'Macro',
 }
 
 function normalizeClassLabel(value: unknown) {

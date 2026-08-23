@@ -2,8 +2,8 @@
  * Verification for the deterministic deadline engine — one test per PRD rule.
  * Run with: npm test
  *
- * Frame of reference: Tue 2026-08-25 (a B day; TOK, Lang, Bio meet).
- * Wed 8/26 is an A day (HOTA, Math meet); Thu 8/27 is the next B day.
+ * Frame of reference: Tue 2026-08-25 (a B day; English, Math meet).
+ * Wed 8/26 is an A day (TOK, History, Biology meet); Thu 8/27 is the next B day.
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -13,18 +13,23 @@ const SETTINGS = {
   first_day: '2026-08-24',
   first_day_type: 'A',
   no_school_dates: ['2026-09-07'],
-  a_schedule: [
-    { name: 'Period 2', start: '9:35 AM', end: '11:05 AM', class_name: 'History of the Americas' },
-    { name: 'Period 3', start: '12:15 PM', end: '1:45 PM', class_name: 'IB Applications and Interpretations' },
-    { name: 'Period 4', start: '1:50 PM', end: '3:15 PM', class_name: 'Cape Fear Class' },
-  ],
-  b_schedule: [
-    { name: 'Period 1', start: '8:00 AM', end: '9:30 AM', class_name: 'TOK' },
-    { name: 'Period 2', start: '9:35 AM', end: '11:05 AM', class_name: 'IB Lang and Lit' },
-    { name: 'Period 3', start: '12:15 PM', end: '1:45 PM', class_name: 'IB Bio' },
-    { name: 'Period 4', start: '1:50 PM', end: '3:15 PM', class_name: 'Cape Fear Class' },
-  ],
-  cape_fear_classes: ['Cape Fear Class'],
+  a_schedule: {
+    tuesFri: [
+      { name: 'Block 1', start: '8:35 AM', end: '10:10 AM', class_name: 'TOK' },
+      { name: 'Block 2', start: '10:15 AM', end: '11:50 AM', class_name: 'History' },
+      { name: 'Block 3', start: '11:55 AM', end: '1:25 PM', class_name: 'Biology' },
+    ],
+  },
+  b_schedule: {
+    tuesFri: [
+      { name: 'Block 2', start: '10:15 AM', end: '11:50 AM', class_name: 'English' },
+      { name: 'Block 3', start: '12:25 PM', end: '1:55 PM', class_name: 'Math' },
+    ],
+  },
+  // Micro/Macro (async CFCC dual-enrollment) are intentionally absent from
+  // a_schedule/b_schedule entirely — they never meet at a fixed period, so
+  // "due next class" for them always falls back to the next school day.
+  cape_fear_classes: ['Microeconomics', 'Macroeconomics'],
 }
 
 // "now" = Tuesday 2026-08-25 at 10:00 AM Eastern (EDT, UTC-4)
@@ -33,20 +38,23 @@ const NOW = new Date('2026-08-25T10:00:00-04:00')
 const eastern = (iso, h, m) => new Date(`${iso}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00-04:00`).toISOString()
 
 test('rule: homework "due next class" → 11:59 PM the night before that class', () => {
-  // Bio meets on B days; next B day after Tue 8/25 is Thu 8/27 → due Wed 8/26 11:59 PM
-  const bio = computeDeadline({ kind: 'assignment', dueText: 'next class', className: 'Bio' }, SETTINGS, NOW)
-  assert.equal(bio.due_date_calc, '2026-08-26')
-  assert.equal(bio.due_at, eastern('2026-08-26', 23, 59))
-  assert.equal(bio.original_due_text, 'next class')
-
-  // HOTA meets on A days; next A day is Wed 8/26 → due Tue 8/25 (tonight) 11:59 PM
+  // Search starts strictly tomorrow. HOTA (History) meets on A days; next A
+  // day after Tue 8/25 is Wed 8/26 → due Tue 8/25 (tonight) 11:59 PM
   const hota = computeDeadline({ kind: 'assignment', dueText: 'due before class', className: 'HOTA' }, SETTINGS, NOW)
   assert.equal(hota.due_date_calc, '2026-08-25')
   assert.equal(hota.due_at, eastern('2026-08-25', 23, 59))
+  assert.equal(hota.original_due_text, 'due before class')
 
-  // Cape Fear meets every school day → next session Wed → due tonight
-  const cf = computeDeadline({ kind: 'assignment', dueText: 'due next class', className: 'Cape Fear Class' }, SETTINGS, NOW)
-  assert.equal(cf.due_date_calc, '2026-08-25')
+  // Lang (English) meets on B days; tomorrow (Wed 8/26) is an A day, so the
+  // next B day is Thu 8/27 → due Wed 8/26 11:59 PM
+  const lang = computeDeadline({ kind: 'assignment', dueText: 'next class', className: 'Lang' }, SETTINGS, NOW)
+  assert.equal(lang.due_date_calc, '2026-08-26')
+  assert.equal(lang.due_at, eastern('2026-08-26', 23, 59))
+
+  // Micro/Macro never appear in the schedule → same fallback as an unknown
+  // class: the next school day (Wed) → due tonight
+  const micro = computeDeadline({ kind: 'assignment', dueText: 'due next class', className: 'Micro' }, SETTINGS, NOW)
+  assert.equal(micro.due_date_calc, '2026-08-25')
 
   // Unknown class → falls back to the next school day (Wed) → due tonight
   const unknown = computeDeadline({ kind: 'assignment', dueText: 'next class' }, SETTINGS, NOW)
@@ -55,11 +63,12 @@ test('rule: homework "due next class" → 11:59 PM the night before that class',
 
 test('rule: "due next class" skips weekends and holidays', () => {
   // Friday 2026-09-04 (B day) after school; Mon 9/7 is Labor Day.
-  // Bio's next class is Thu... next B day after Fri 9/4: Tue 9/8 is A, Wed 9/9 is B → due Tue 9/8 night
+  // Bio (Biology) meets on A days; search starts Sat 9/5, skips the weekend
+  // and Labor Day, landing on Tue 9/8 (A day) → due Mon 9/7 (Labor Day) night
   const friday = new Date('2026-09-04T16:00:00-04:00')
   const bio = computeDeadline({ kind: 'assignment', dueText: 'next class', className: 'Bio' }, SETTINGS, friday)
-  assert.equal(bio.due_date_calc, '2026-09-08')
-  assert.equal(bio.due_at, eastern('2026-09-08', 23, 59))
+  assert.equal(bio.due_date_calc, '2026-09-07')
+  assert.equal(bio.due_at, eastern('2026-09-07', 23, 59))
 })
 
 test('rule: "due today" / "end of day" → 11:59 PM tonight', () => {
@@ -71,8 +80,9 @@ test('rule: "due today" / "end of day" → 11:59 PM tonight', () => {
 })
 
 test('rule: tests and quizzes land on the actual day, not the night before', () => {
-  // "quiz next class" in Bio → the day Bio meets (Thu 8/27), NOT Wed night
-  const quiz = computeDeadline({ kind: 'test', dueText: 'next class', className: 'Bio' }, SETTINGS, NOW)
+  // "quiz next class" in Lang (English, a B-day class) → the day it next
+  // meets (Thu 8/27, since tomorrow Wed 8/26 is an A day), NOT Wed night
+  const quiz = computeDeadline({ kind: 'test', dueText: 'next class', className: 'Lang' }, SETTINGS, NOW)
   assert.equal(quiz.due_date_calc, '2026-08-27')
 
   // "test Friday" → that Friday itself

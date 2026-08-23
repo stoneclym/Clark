@@ -149,12 +149,17 @@ export function inferKind(title = '', dueText = '') {
   return 'assignment'
 }
 
-// Task tags → search terms that match class_name entries in the A/B schedules.
+// Task tags → search terms that match class_name entries in the A/B
+// schedules — these must match the actual class_name values stored in
+// settings.a_schedule/b_schedule (see clarkscheduleprompt.md), not the
+// formal IB grade-card names. Micro/Macro are intentionally absent: they
+// never appear in the A/B schedule at all (async CFCC dual-enrollment,
+// no fixed period), so there's no "next class" to resolve for them.
 const TAG_SCHEDULE_SEARCH = {
-  hota: 'History of the Americas',
-  bio: 'Bio',
-  lang: 'Lang',
-  math: 'Applications and Interpretations',
+  hota: 'History',
+  bio: 'Biology',
+  lang: 'English',
+  math: 'Math',
   tok: 'TOK',
 }
 

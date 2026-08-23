@@ -396,14 +396,27 @@ const FORMAL_GRADE_NAMES = {
   'math analysis and approaches': 'IB Applications and Interpretations',
   'ib applications and interpretations': 'IB Applications and Interpretations',
   'applications and interpretations': 'IB Applications and Interpretations',
+  micro: 'ECO 251 – Principles of Microeconomics',
+  microeconomics: 'ECO 251 – Principles of Microeconomics',
+  'principles of microeconomics': 'ECO 251 – Principles of Microeconomics',
+  'eco 251': 'ECO 251 – Principles of Microeconomics',
+  macro: 'ECO 252 – Principles of Macroeconomics',
+  macroeconomics: 'ECO 252 – Principles of Macroeconomics',
+  'principles of macroeconomics': 'ECO 252 – Principles of Macroeconomics',
+  'eco 252': 'ECO 252 – Principles of Macroeconomics',
 }
 
+// The two CFCC dual-enrollment classes (Micro/Macro) are grades-only —
+// no block/period, never part of the A/B schedule or current/next-class
+// logic — so they only ever show up here, not in DashboardCard/schedule.
 const FORMAL_GRADE_ORDER = [
   'IB History of the Americas',
   'IB Biology',
   'IB Theory of Knowledge',
   'IB Language and Literature',
   'IB Applications and Interpretations',
+  'ECO 251 – Principles of Microeconomics',
+  'ECO 252 – Principles of Macroeconomics',
 ]
 
 function normalizeClassName(name) {
