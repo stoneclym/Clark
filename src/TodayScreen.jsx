@@ -401,7 +401,12 @@ function normalizeClassName(name) {
 }
 
 function gradeDisplayName(className) {
-  return FORMAL_GRADE_NAMES[normalizeClassName(className)] || null
+  const key = normalizeClassName(className)
+  if (FORMAL_GRADE_NAMES[key]) return FORMAL_GRADE_NAMES[key]
+  // The AI (and stored rows) sometimes echo the formal name itself back
+  // verbatim (e.g. "ECO 251 – Principles of Microeconomics") rather than a
+  // short alias — match that directly too, so nothing falls through.
+  return FORMAL_GRADE_ORDER.find(formal => normalizeClassName(formal) === key) || null
 }
 
 function gradeNumber(percentage) {

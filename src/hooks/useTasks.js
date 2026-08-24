@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { compareTaskDates } from '../lib/taskDates.js'
+import { CLUB_TASK_PREFIX, mapClubTask } from '../lib/clubTaskAdapter.js'
 
 function sortTasks(tasks) {
   return [...tasks].sort((a, b) => {
@@ -16,12 +17,12 @@ export function useTasks() {
   const [loading, setLoading] = useState(true)
 
   const fetchTasks = useCallback(async () => {
-    const { data } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('done', false)
-      .order('created_at', { ascending: true })
-    if (data) setTasks(sortTasks(data))
+    const [{ data: taskRows }, { data: clubTaskRows }] = await Promise.all([
+      supabase.from('tasks').select('*').eq('done', false).order('created_at', { ascending: true }),
+      supabase.from('club_tasks').select('*, clubs(name)').eq('done', false).order('created_at', { ascending: true }),
+    ])
+    const merged = [...(taskRows || []), ...(clubTaskRows || []).map(mapClubTask)]
+    setTasks(sortTasks(merged))
     setLoading(false)
   }, [])
 
@@ -33,6 +34,7 @@ export function useTasks() {
     const channel = supabase
       .channel(`tasks-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchTasks)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_tasks' }, fetchTasks)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [fetchTasks])
@@ -40,6 +42,11 @@ export function useTasks() {
   const toggleTask = useCallback(async (id) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
     const task = tasks.find(t => t.id === id)
+
+    if (typeof id === 'string' && id.startsWith(CLUB_TASK_PREFIX)) {
+      await supabase.from('club_tasks').update({ done: !task?.done }).eq('id', id.slice(CLUB_TASK_PREFIX.length))
+      return
+    }
     await supabase.from('tasks').update({ done: !task?.done }).eq('id', id)
   }, [tasks])
 

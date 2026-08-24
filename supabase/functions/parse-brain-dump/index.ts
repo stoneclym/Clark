@@ -206,7 +206,13 @@ function normalizeClassName(name: unknown) {
 }
 
 function formalGradeName(name: unknown) {
-  return FORMAL_GRADE_NAMES[normalizeClassName(name)] || null
+  const key = normalizeClassName(name)
+  if (FORMAL_GRADE_NAMES[key]) return FORMAL_GRADE_NAMES[key]
+  // The AI is told to echo the closest class_name from FORMAL_GRADE_ORDER,
+  // which for ECO classes is the full formal string itself (e.g. "ECO 251 –
+  // Principles of Microeconomics") rather than a short alias — match that
+  // directly too, and also use it to recognize existing stored rows.
+  return FORMAL_GRADE_ORDER.find(formal => normalizeClassName(formal) === key) || null
 }
 
 function gradePercentage(value: unknown) {
