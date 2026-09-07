@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
+import { APP_VERSION } from './lib/version.js'
 
 const MICROSOFT_CLIENT_ID = 'c92f4bf4-9da6-4d38-b49d-715a2bee4beb'
 const OUTLOOK_SCOPES = [
@@ -251,6 +252,13 @@ export default function SettingsScreen({ dark, onBack }) {
               })}
             </div>
           )}
+        </div>
+
+        {/* Version */}
+        <div style={{ textAlign: 'center', paddingTop: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--faint)', letterSpacing: '0.02em' }}>
+            Version {APP_VERSION}
+          </div>
         </div>
 
       </div>

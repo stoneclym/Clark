@@ -33,9 +33,17 @@ function stripClassPhrases(value: string) {
   let title = value
   TASK_TITLE_CLASS_PHRASES.forEach(phrase => {
     const pattern = phrase.replace(/\s+/g, '\\s+')
+    // Consume the preposition that introduces the class first, so "Time Magazine
+    // for History" does not strip to "Time Magazine for" and leave it dangling.
+    title = title.replace(new RegExp(`\\s*\\b(?:for|in|from|of|about|on|with)\\s+${pattern}\\b`, 'gi'), ' ')
     title = title.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ')
   })
-  return title.replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim()
+  return title
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s*\b(?:for|in|from|of|about|on|with|and|the|my|to)\b\s*$/i, '')
+    .replace(/[\s,;:\-–—]+$/, '')
+    .trim()
 }
 const TASK_TITLE_WORDS: Record<string, string> = {
   ib: 'IB',
@@ -150,6 +158,14 @@ function clarkMonth(date: Date) {
 
 function clarkDay(date: Date) {
   return clarkParts(date).day
+}
+
+// Calendar date (YYYY-MM-DD) as seen in Clark's timezone. Must not go through
+// toISOString(), which reports the UTC day — an end-of-day Eastern deadline
+// (23:59) lands on the *next* UTC day and shifts the stored date forward one.
+function clarkDateString(date: Date) {
+  const parts = clarkParts(date)
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
 }
 
 function clarkWeekday(date: Date) {
@@ -271,13 +287,56 @@ function normalizeTaskDeadline(value: unknown) {
   }
 
   const dueAt = applyDeadlineTime(date, parseTime(originalDueText))
-  const dueDateCalc = dueAt.toISOString().slice(0, 10)
+  const dueDateCalc = clarkDateString(dueAt)
   return {
     due_date: dueDateCalc,
     due_date_calc: dueDateCalc,
     due_at: dueAt.toISOString(),
     original_due_text: originalDueText,
   }
+}
+
+// Hard guarantee that no emoji reaches the UI, independent of the system prompt.
+// Extended_Pictographic covers the emoji blocks without touching ASCII digits,
+// "#" or "*" (which carry the broader Emoji property but are ordinary text).
+function stripEmojis(value: string) {
+  return value
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, '') // skin-tone modifiers
+    .replace(/[️︎‍⃣]/g, '') // variation selectors, ZWJ, keycap
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ +([,.;:!?])/g, '$1')
+    .replace(/^[ \t]+$/gm, '')
+    .trim()
+}
+
+// Renders a stored deadline as a plain Eastern-time phrase. Handing the model a
+// raw UTC ISO string makes it read the UTC day, which is one ahead for any
+// evening Eastern deadline — the source of "due date is one day late".
+function formatDueForModel(dueAt: unknown, dueDate: unknown) {
+  const raw = String(dueAt || dueDate || '').trim()
+  if (!raw) return 'no date'
+
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return raw
+
+  const dayLabel = date.toLocaleDateString('en-US', {
+    timeZone: CLARK_TIME_ZONE,
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  // 23:59 is the sentinel normalizeTaskDeadline writes for all-day deadlines.
+  const parts = clarkParts(date)
+  if (parts.hour === 23 && parts.minute === 59) return dayLabel
+
+  const timeLabel = date.toLocaleTimeString('en-US', {
+    timeZone: CLARK_TIME_ZONE,
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+  return `${dayLabel} at ${timeLabel}`
 }
 
 const tools: Anthropic.Tool[] = [
@@ -349,13 +408,20 @@ Deno.serve(async (req) => {
   const clubs = clubsRes.data ?? []
   const settings = settingsRes.data?.[0]
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  // Edge functions run in UTC — without an explicit timezone this reports
+  // tomorrow's date all evening in Eastern time.
+  const today = new Date().toLocaleDateString('en-US', {
+    timeZone: CLARK_TIME_ZONE,
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
 
   const context = `
-Today is ${today}.
+Today is ${today}. All dates and times below are in ${CLARK_TIME_ZONE} (the user's local time).
 
 PENDING TASKS (${tasks.length}):
-${tasks.map(t => `- [${t.id}] ${t.title} [${t.tag || t.category}] due ${t.due_at || t.due_date || 'no date'}${t.priority ? ' ★ priority' : ''}`).join('\n') || 'None'}
+${tasks.map(t => `- [${t.id}] ${t.title} [${t.tag || t.category}] due ${formatDueForModel(t.due_at, t.due_date)}${t.priority ? ' ★ priority' : ''}`).join('\n') || 'None'}
 
 GRADES:
 ${grades.map(g => `- ${g.class_name}: ${g.score || '—'} (${g.percentage || '—'})${g.note ? ' — ' + g.note : ''}`).join('\n') || 'None'}
@@ -372,16 +438,27 @@ ${clubs.map(c => {
 
   const systemPrompt = `You are Clark, a smart personal assistant for a high school senior who is an IB student and multi-club leader. You know their schedule, tasks, grades, inbox, and clubs.
 
-Be conversational, concise, and genuinely helpful. Use short sentences. When listing things, use bullet points. Speak like a knowledgeable friend — not a formal assistant.
+LENGTH — keep answers short:
+- Default to 1-3 sentences. Answer the question asked and stop.
+- A direct question gets a direct answer. "When is my essay due?" → "Friday, September 11." Nothing more.
+- Only use bullets when listing three or more items, and keep each bullet to one line.
+- No preamble ("Great question!", "Sure thing!"), no restating the question, no summarizing what you just said, and no unsolicited follow-up offers.
+
+STYLE:
+- NEVER use emojis. Not in sentences, not in bullets, not in headers. No exceptions.
+- No decorative symbols or emoticons of any kind. Plain text only.
+- Speak like a knowledgeable friend — plain, warm, direct. Not formal, not bubbly.
 
 IMPORTANT: When the user asks you to add a task, create a reminder, or "note" something — you MUST call the create_task tool to actually save it. When they say something is done or finished, call mark_task_done. When the user mentions when a club meeting is happening ("NHS meeting is tomorrow at 3:30", "Beta Club meets Friday"), call set_club_meeting — do NOT create a task for a meeting announcement. Never claim you've done something without calling the tool.
+
+Dates: state them the way they appear in the context below. Do not convert or shift them.
 
 Current context:
 ${context}`
 
   let response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 600,
+    max_tokens: 400,
     system: systemPrompt,
     tools,
     messages,
@@ -442,7 +519,7 @@ ${context}`
 
     response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 600,
+      max_tokens: 400,
       system: systemPrompt,
       tools,
       messages: [
@@ -453,7 +530,7 @@ ${context}`
     })
   }
 
-  const text = response.content.find(b => b.type === 'text')?.text ?? ''
+  const text = stripEmojis(response.content.find(b => b.type === 'text')?.text ?? '')
 
   return new Response(JSON.stringify({ text }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -14,9 +14,11 @@ export default function TabBar({ screen, onNavigate }) {
 
   return (
     <div style={{
-      position: 'sticky', bottom: 0, zIndex: 5,
-      background: 'var(--bg)',
-      borderTop: '1px solid var(--border)',
+      position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 5,
+      background: 'var(--glassBg)',
+      backdropFilter: 'blur(20px) saturate(160%)',
+      WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+      borderTop: '1px solid var(--glassBorder)',
       display: 'flex', alignItems: 'flex-start',
       padding: '9px 20px 30px',
     }}>
@@ -39,8 +41,11 @@ export default function TabBar({ screen, onNavigate }) {
             width: 56, height: 56, borderRadius: '50%',
             background: 'var(--accent)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 6px 16px rgba(86,141,179,0.4)',
-            border: '3px solid var(--bg)',
+            // Glass-toned ring instead of an opaque --bg disc: the button
+            // overhangs the bar, and a solid ring punched a visible notch
+            // through the top border.
+            boxShadow: 'var(--fabGlow)',
+            border: '3px solid var(--glassBg)',
           }}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 11.5a8 8 0 0 1-11.6 7.1L4 20l1.4-5.4A8 8 0 1 1 21 11.5z"/>

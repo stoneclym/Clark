@@ -23,9 +23,17 @@ function stripClassPhrases(value) {
   let title = value
   TASK_TITLE_CLASS_PHRASES.forEach(phrase => {
     const pattern = phrase.replace(/\s+/g, '\\s+')
+    // Consume the preposition that introduces the class first, so "Time Magazine
+    // for History" does not strip to "Time Magazine for" and leave it dangling.
+    title = title.replace(new RegExp(`\\s*\\b(?:for|in|from|of|about|on|with)\\s+${pattern}\\b`, 'gi'), ' ')
     title = title.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ')
   })
-  return title.replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim()
+  return title
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s*\b(?:for|in|from|of|about|on|with|and|the|my|to)\b\s*$/i, '')
+    .replace(/[\s,;:\-–—]+$/, '')
+    .trim()
 }
 const TASK_TITLE_WORDS = {
   ib: 'IB',

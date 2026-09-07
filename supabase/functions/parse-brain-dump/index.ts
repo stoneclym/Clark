@@ -33,9 +33,17 @@ function stripClassPhrases(value: string) {
   let title = value
   TASK_TITLE_CLASS_PHRASES.forEach(phrase => {
     const pattern = phrase.replace(/\s+/g, '\\s+')
+    // Consume the preposition that introduces the class first, so "Time Magazine
+    // for History" does not strip to "Time Magazine for" and leave it dangling.
+    title = title.replace(new RegExp(`\\s*\\b(?:for|in|from|of|about|on|with)\\s+${pattern}\\b`, 'gi'), ' ')
     title = title.replace(new RegExp(`\\b${pattern}\\b`, 'gi'), ' ')
   })
-  return title.replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').trim()
+  return title
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s*\b(?:for|in|from|of|about|on|with|and|the|my|to)\b\s*$/i, '')
+    .replace(/[\s,;:\-–—]+$/, '')
+    .trim()
 }
 const TASK_TITLE_WORDS: Record<string, string> = {
   ib: 'IB',
@@ -150,6 +158,14 @@ function clarkMonth(date: Date) {
 
 function clarkDay(date: Date) {
   return clarkParts(date).day
+}
+
+// Calendar date (YYYY-MM-DD) as seen in Clark's timezone. Must not go through
+// toISOString(), which reports the UTC day — an end-of-day Eastern deadline
+// (23:59) lands on the *next* UTC day and shifts the stored date forward one.
+function clarkDateString(date: Date) {
+  const parts = clarkParts(date)
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
 }
 
 function clarkWeekday(date: Date) {
@@ -271,7 +287,7 @@ function normalizeTaskDeadline(value: unknown) {
   }
 
   const dueAt = applyDeadlineTime(date, parseTime(originalDueText))
-  const dueDateCalc = dueAt.toISOString().slice(0, 10)
+  const dueDateCalc = clarkDateString(dueAt)
   return {
     due_date: dueDateCalc,
     due_date_calc: dueDateCalc,
@@ -339,6 +355,13 @@ function taskTag(value: unknown) {
   return normalizeClassLabel(tag)
 }
 
+function findClub(clubRows: Array<{ id: string; name: string }>, clubName: string) {
+  const exact = clubRows.find(c => c.name === clubName)
+  if (exact) return exact
+  const firstWord = clubName.split(' ')[0].toLowerCase()
+  return clubRows.find(c => c.name.toLowerCase().includes(firstWord))
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -376,16 +399,27 @@ Return ONLY valid JSON with this shape:
   ],
   "club_meetings": [
     { "club_name": string, "when": string }
+  ],
+  "completed_tasks": [
+    { "title": string }
   ]
 }
+
+Club name aliases — map these to the canonical name:
+- "student council", "student gov", "council", "student government" → "Senior Class"
+- "beta", "beta club" → "Beta Club"
+- "nhs", "honor society", "national honor society" → "National Honor Society"
+- "spanish", "spanish club" → "Spanish Club"
 
 Rules:
 - "due_date" can be natural language: "today", "next class", "Friday", "tomorrow at 4 PM"
 - priority must be a boolean true or false, never a string
 - Do not use status words like "overdue", "late", "today", "tomorrow", or "yesterday" as task tags. Tags are only for a class, club, or category.
+- SPLIT "<work> for <class>" — the class goes in "tag", never in "title", and the connecting preposition is dropped. "finish Time Magazine for History" → title "Finish Time Magazine", tag "History". "read chapter 4 for Bio" → title "Read chapter 4", tag "Bio". The same applies to "in", "from", and "about".
 - For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
-- For club_meetings: use when the user announces a club meeting happening at a specific time ("NHS meeting tomorrow at 3:30", "Beta Club meets Friday", "We have a Spanish Club meeting next week"). "when" is the natural-language time. You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
-- For club_tasks: use when the user mentions something they need to DO for a club ("make slides for Spanish Club", "print forms for NHS"). You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
+- For club_meetings: use when the user announces a club meeting happening at a specific time ("NHS meeting tomorrow at 3:30", "Beta Club meets Friday", "We have a Spanish Club meeting next week"). "when" is the natural-language time. Use the canonical club_name from this list: ${clubNames.join(' | ')} (apply aliases above)
+- For club_tasks: use when the user mentions something they need to DO for a club ("make slides for Spanish Club", "print forms for NHS"). Use the canonical club_name from this list: ${clubNames.join(' | ')} (apply aliases above)
+- For completed_tasks: use when the user says they finished or completed something ("I finished my bio notes", "done with the HOTA essay"). title is a short description.
 - CRITICAL DISTINCTION: A meeting announcement (event on the calendar) → club_meetings. An action item to complete → club_tasks or tasks. NEVER create a generic task for a meeting announcement.
 - Only include keys with items; omit empty arrays
 - No markdown, no explanation — raw JSON only`
@@ -469,11 +503,11 @@ Rules:
     }
   }
 
-  // Insert club tasks — exact club_name match using pre-loaded club rows
+  // Insert club tasks — fuzzy club_name match
   if (Array.isArray(parsed.club_tasks) && parsed.club_tasks.length) {
     for (const ct of parsed.club_tasks as Array<Record<string, unknown>>) {
       const clubName = String(ct.club_name || '').trim()
-      const clubRow = clubRows.find(c => c.name === clubName)
+      const clubRow = findClub(clubRows, clubName)
       if (clubRow) {
         const { error: ctError } = await supabase.from('club_tasks')
           .insert({ club_id: clubRow.id, task_text: String(ct.task_text || '').trim() })
@@ -484,31 +518,47 @@ Rules:
     }
   }
 
-  // Update club next_meeting — exact club_name match
+  // Update club next_meeting + insert a task — fuzzy club_name match
   if (Array.isArray(parsed.club_meetings) && parsed.club_meetings.length) {
+    const { count: taskCount } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
+    let meetingTaskRank = (taskCount || 0) + 1
+
     for (const cm of parsed.club_meetings as Array<Record<string, unknown>>) {
       const clubName = String(cm.club_name || '').trim()
       const when = String(cm.when || '').trim()
       if (!clubName || !when) continue
 
+      const clubRow = findClub(clubRows, clubName)
+      if (!clubRow) {
+        dbErrors.push(`club_meetings: no club found matching "${clubName}"`)
+        continue
+      }
+
       const { error: cmError } = await supabase
         .from('clubs')
         .update({ next_meeting: when })
-        .eq('name', clubName)
+        .eq('id', clubRow.id)
+      if (cmError) dbErrors.push(`club_meetings(${clubRow.name}): ${cmError.message}`)
 
-      if (cmError) dbErrors.push(`club_meetings(${clubName}): ${cmError.message}`)
+      // Also create a task so the meeting appears on Today
+      const deadline = normalizeTaskDeadline(enrichDueText(when, when))
+      const { error: mtError } = await supabase.from('tasks').insert({
+        title: `${clubRow.name} meeting`,
+        category: 'Club',
+        tag: null,
+        ...deadline,
+        priority: false,
+        priority_rank: null,
+        source: 'Brain Dump',
+      })
+      if (mtError) dbErrors.push(`meeting task(${clubRow.name}): ${mtError.message}`)
+      meetingTaskRank++
     }
   }
 
-  if (dbErrors.length > 0) {
-    return new Response(
-      JSON.stringify({ error: 'Some saves failed', details: dbErrors, parsed }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
-
+  const warnings = dbErrors.length > 0 ? dbErrors : undefined
   return new Response(
-    JSON.stringify({ ok: true, parsed }),
+    JSON.stringify({ ok: true, parsed, ...(warnings ? { warnings } : {}) }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
   )
 })

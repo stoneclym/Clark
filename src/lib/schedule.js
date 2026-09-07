@@ -67,12 +67,16 @@ export function getCurrentPeriod(schedule, now = new Date()) {
 
     if (nowMins >= startMins && nowMins < endMins) {
       const remaining = endMins - nowMins
+      const total = endMins - startMins
       const next = schedule[i + 1]
       return {
         status: 'now',
         period: label,
         className,
         remaining: `${remaining} min`,
+        remainingMins: remaining,
+        // 0 at the bell, 1 when the period ends — drives the progress bar.
+        progress: total > 0 ? Math.min(1, Math.max(0, (nowMins - startMins) / total)) : 0,
         nextClass: next ? (next.class_name || '') : null,
       }
     }
@@ -84,6 +88,8 @@ export function getCurrentPeriod(schedule, now = new Date()) {
         period: label,
         className,
         remaining: `in ${minsUntil} min`,
+        remainingMins: minsUntil,
+        progress: 0,
         nextClass: null,
       }
     }

@@ -46,6 +46,24 @@ const DARK = {
 
 const ACCENT = '#568DB3'
 
+// Frosted tab bar. The bar overlays the scroll area, so these backgrounds stay
+// translucent and let content blur through. Dark mode needs a stronger border
+// and a much softer accent glow — a wide 0.4-alpha blue halo reads as a smudge
+// against a near-black bar rather than as a highlight.
+const TAB_BAR_HEIGHT = 78
+const GLASS = {
+  light: {
+    bg: 'rgba(240,238,230,0.72)',
+    border: 'rgba(40,36,28,0.12)',
+    glow: '0 6px 16px rgba(86,141,179,0.32)',
+  },
+  dark: {
+    bg: 'rgba(26,24,21,0.72)',
+    border: 'rgba(255,255,255,0.14)',
+    glow: '0 4px 14px rgba(86,141,179,0.22)',
+  },
+}
+
 function systemPrefersDark() {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false
 }
@@ -102,6 +120,7 @@ export default function App() {
   }, [])
 
   const base = dark ? DARK : LIGHT
+  const glass = dark ? GLASS.dark : GLASS.light
   const accentText = dark
     ? 'color-mix(in srgb, #568DB3 70%, #ffffff 30%)'
     : 'color-mix(in srgb, #568DB3 80%, #000000 20%)'
@@ -119,6 +138,9 @@ export default function App() {
     '--accent': ACCENT,
     '--accentText': accentText,
     '--accentSoft': accentSoft,
+    '--glassBg': glass.bg,
+    '--glassBorder': glass.border,
+    '--fabGlow': glass.glow,
     background: base.bg,
     color: base.text,
   }
@@ -204,10 +226,12 @@ export default function App() {
         <ErrorBoundary>
           {/* Relative container — today/clubs stay mounted in their own scroll layers */}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'today' ? 'block' : 'none' }}>
+            {/* Today and Clubs scroll under the frosted tab bar, so they reserve
+                its height as bottom padding to keep the last card reachable. */}
+            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingBottom: TAB_BAR_HEIGHT, display: screen === 'today' ? 'block' : 'none' }}>
               <TodayScreen filter={filter} onFilter={setFilter} onCloseQuick={closeQuick} />
             </div>
-            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: screen === 'clubs' ? 'block' : 'none' }}>
+            <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingBottom: TAB_BAR_HEIGHT, display: screen === 'clubs' ? 'block' : 'none' }}>
               <ClubsScreen onCloseQuick={closeQuick} />
             </div>
             {screen === 'ask' && (
