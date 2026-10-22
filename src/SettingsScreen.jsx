@@ -574,6 +574,12 @@ export default function SettingsScreen({ onBack }) {
           )}
         />
 
+        <div style={{ textAlign: 'center', fontSize: 11.5, color: 'var(--faint)', lineHeight: 1.5 }}>
+          Build {__BUILD_SHA__}
+          <br />
+          {new Date(__BUILD_TIME__).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+        </div>
+
       </div>
 
       <ConfirmDialog
