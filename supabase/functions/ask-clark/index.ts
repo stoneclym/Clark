@@ -179,6 +179,21 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'update_task',
+    description: 'Edit an existing open task in place: change its due date, rename it, or change its category/tag. Use for "move X to Friday", "change the due date of X", "rename X". Matches by partial title. NEVER mark a task done and recreate it to change it — call this.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        title_match: { type: 'string', description: 'Part of the existing task title to match (case-insensitive)' },
+        due_date: { type: 'string', description: 'New due date as the user\'s scheduling words VERBATIM: "Friday", "next class", "tomorrow at 4 PM". Do not calculate dates — deterministic code does.' },
+        new_title: { type: 'string', description: 'New title, only if the user wants to rename the task' },
+        category: { type: 'string', enum: ['Class', 'Club', 'College', 'Personal'], description: 'New category, only if changing it' },
+        tag: { type: 'string', description: 'New class tag, only if changing it' },
+      },
+      required: ['title_match'],
+    },
+  },
+  {
     name: 'set_club_meeting',
     description: 'Set or update the next meeting date/time for a club. Use when the user mentions when a club meeting is happening — e.g. "NHS meeting is tomorrow at 3:30", "Beta Club meets Friday". Do NOT use this for action items to complete; use create_task for those.',
     input_schema: {
@@ -251,7 +266,7 @@ Be conversational, concise, and genuinely helpful. Use short sentences. Speak li
 
 Format with markdown when it helps clarity — bold for emphasis, bullet or numbered lists, and tables for anything with rows and columns (e.g. comparing classes or a weekly breakdown). The chat renders full markdown, so use it naturally rather than describing a table in prose.
 
-IMPORTANT: When the user asks you to add a task, create a reminder, or "note" something — you MUST call the create_task tool to actually save it. When they say something is done or finished, call mark_task_done. When the user mentions when a club meeting is happening ("NHS meeting is tomorrow at 3:30", "Beta Club meets Friday"), call set_club_meeting — do NOT create a task for a meeting announcement. Never claim you've done something without calling the tool.
+IMPORTANT: When the user asks you to add a task, create a reminder, or "note" something — you MUST call the create_task tool to actually save it. When they say something is done or finished, call mark_task_done. When they want to change, move, reschedule, or rename an existing task ("change the due date of X to Friday"), call update_task — never mark it done and recreate it, and never say you can't edit tasks. When the user mentions when a club meeting is happening ("NHS meeting is tomorrow at 3:30", "Beta Club meets Friday"), call set_club_meeting — do NOT create a task for a meeting announcement. Never claim you've done something without calling the tool.
 
 Current context:
 ${context}`
@@ -332,6 +347,56 @@ ${context}`
           : count
             ? `Marked ${count} task(s) as done.`
             : 'No matching tasks found.'
+      }
+
+      if (block.name === 'update_task') {
+        const titleMatch = String(input.title_match || '').trim()
+        const latestUserMessage = [...messages].reverse().find(message => message.role === 'user')?.content || ''
+        const [{ data: taskMatches }, { data: clubTaskMatches }] = await Promise.all([
+          supabase.from('tasks').select('*').ilike('title', `%${titleMatch}%`).eq('done', false),
+          supabase.from('club_tasks').select('*').ilike('task_text', `%${titleMatch}%`).eq('done', false),
+        ])
+
+        const updated: string[] = []
+        const errors: string[] = []
+
+        for (const task of taskMatches ?? []) {
+          const updates: Record<string, unknown> = {}
+          if (input.new_title) updates.title = sentenceCaseTaskTitle(input.new_title) || task.title
+          if (input.category) updates.category = String(input.category)
+          if (input.tag) updates.tag = normalizeClassLabel(input.tag)
+          if (input.due_date) {
+            const dueText = enrichDueText(input.due_date, `${task.title} ${latestUserMessage}`)
+            const tag = (updates.tag as string | null | undefined) ?? task.tag
+            const kind = TASK_KINDS.includes(String(task.kind)) ? String(task.kind) : inferKind(task.title, dueText)
+            Object.assign(updates, computeDeadline({ kind, dueText, className: tag || '', title: task.title }, settings))
+          }
+          if (!Object.keys(updates).length) continue
+          const { error } = await supabase.from('tasks').update(updates).eq('id', task.id)
+          if (error) errors.push(error.message)
+          else updated.push(String(updates.title ?? task.title))
+        }
+
+        for (const task of clubTaskMatches ?? []) {
+          const updates: Record<string, unknown> = {}
+          if (input.new_title) updates.task_text = sentenceCaseTaskTitle(input.new_title) || task.task_text
+          if (input.due_date) {
+            const dueText = enrichDueText(input.due_date, `${task.task_text} ${latestUserMessage}`)
+            Object.assign(updates, computeDeadline({ kind: inferKind(task.task_text, dueText), dueText, title: task.task_text }, settings))
+          }
+          if (!Object.keys(updates).length) continue
+          const { error } = await supabase.from('club_tasks').update(updates).eq('id', task.id)
+          if (error) errors.push(error.message)
+          else updated.push(String(updates.task_text ?? task.task_text))
+        }
+
+        result = errors.length
+          ? `Error updating task: ${errors.join('; ')}`
+          : updated.length
+            ? `Updated: ${updated.join(', ')}.`
+            : (taskMatches?.length || clubTaskMatches?.length)
+              ? 'Found the task but no changes were specified.'
+              : 'No matching open tasks found.'
       }
 
       if (block.name === 'set_club_meeting') {
