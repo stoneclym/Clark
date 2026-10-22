@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useTasks } from './hooks/useTasks.js'
 import { useGrades } from './hooks/useGrades.js'
 import { useEmails } from './hooks/useEmails.js'
@@ -7,14 +7,11 @@ import { useBriefing } from './hooks/useBriefing.js'
 import { supabase } from './lib/supabase.js'
 import { sentenceCaseTaskTitle } from './lib/taskTitles.js'
 import { getTaskDateInfo, OVERDUE_COLOR } from './lib/taskDates.js'
-import { normalizeClassLabel } from './lib/classNames.js'
-
-// ─── Calendar config ───────────────────────────────────────────
-const CAL_TODAY = new Date().getDate()
-const CAL_MONTH = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-const CAL_FIRST_DOW = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay()
-const CAL_DAYS = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
-const CAL_EVENTS = new Set([12, 18, 22, 25, 26, 30]) // populated from tasks in real use
+import { normalizeClassLabel, CLASS_TAG_ORDER } from './lib/classNames.js'
+import { timeOfDayLabel } from './lib/greeting.js'
+import { triggerHaptic } from './lib/haptics.js'
+import CalendarCard from './CalendarCard.jsx'
+import TopPills from './TopPills.jsx'
 
 // ─── Shared UI primitives ──────────────────────────────────────
 function Label({ children }) {
@@ -25,9 +22,9 @@ function Label({ children }) {
   )
 }
 
-function Card({ children }) {
+function Card({ children, style }) {
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 22, padding: 20, boxShadow: '0 1px 2px rgba(40,36,28,0.05)' }}>
+    <div style={{ background: 'var(--card)', border: 'var(--card-border)', borderRadius: 22, padding: 20, boxShadow: 'var(--card-shadow)', ...style }}>
       {children}
     </div>
   )
@@ -52,8 +49,60 @@ function displayTaskTag(tag) {
   return normalizeClassLabel(value) || ''
 }
 
+// ─── Briefing sub-card (nested inside DashboardCard) ─────────────
+function BriefingSection({ briefing, generating, generate }) {
+  const [expanded, setExpanded] = useState(false)
+  const contentRef = useRef(null)
+  const [maxHeight, setMaxHeight] = useState(0)
+
+  useEffect(() => {
+    if (!expanded || !contentRef.current) { setMaxHeight(0); return }
+    setMaxHeight(contentRef.current.scrollHeight + 8)
+    // Source Serif 4 may still be swapping in when we first measure —
+    // re-measure once it's actually loaded so the last line doesn't clip.
+    document.fonts?.ready?.then(() => {
+      if (contentRef.current) setMaxHeight(contentRef.current.scrollHeight + 8)
+    })
+  }, [expanded, briefing])
+
+  const briefingText = briefing?.content || 'Tap the refresh button to generate your morning briefing.'
+  const condensed = briefingText.split(/(?<=[.!?])\s+/)[0]
+
+  return (
+    <div style={{ marginTop: 14, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+      <div onClick={() => { triggerHaptic(); setExpanded(e => !e) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+        <Label>{timeOfDayLabel()}</Label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
+          {briefing && <span style={{ fontSize: 11 }}>{new Date(briefing.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
+          <button onClick={(e) => { e.stopPropagation(); generate() }} disabled={generating} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accentText)', background: 'none', border: 'none', padding: 0, opacity: generating ? 0.5 : 1 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: generating ? 'spin 1s linear infinite' : 'none' }}>
+              <path d="M20 11a8 8 0 1 0-1 6"/>
+              <path d="M20 4v5h-5"/>
+            </svg>
+          </button>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </div>
+      </div>
+      {!expanded && (
+        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {condensed}
+        </p>
+      )}
+      <div style={{ overflow: 'hidden', maxHeight, opacity: expanded ? 1 : 0, transition: 'max-height 0.25s ease, opacity 0.2s ease' }}>
+        <div ref={contentRef}>
+          <p style={{ margin: '8px 0 0', fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, fontWeight: 480, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
+            {briefingText}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Dashboard Card ─────────────────────────────────────────────
-function DashboardCard({ priorities, toggleTask }) {
+export function DashboardCard() {
   const { dayType, currentPeriod, dateLabel } = useSchedule()
   const { briefing, generating, generate } = useBriefing()
 
@@ -61,79 +110,35 @@ function DashboardCard({ priorities, toggleTask }) {
     ? { label: currentPeriod.status === 'now' ? `Now · ${currentPeriod.period}` : `Next · ${currentPeriod.period}`, name: currentPeriod.className, time: currentPeriod.remaining, next: currentPeriod.nextClass }
     : { label: 'No class right now', name: 'Free period', time: '', next: null }
 
-  const briefingText = briefing?.content || 'Good morning. Tap the refresh button to generate your morning briefing.'
-
   return (
     <Card>
       {/* Schedule strip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, background: 'var(--accentSoft)', color: 'var(--accentText)', flexShrink: 0 }}>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>DAY</span>
-          <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 19, fontWeight: 600, lineHeight: 1 }}>{dayType || '—'}</span>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{periodDisplay.label}</div>
-          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 16, fontWeight: 500, marginTop: 2, color: 'var(--text)' }}>{periodDisplay.name}</div>
-        </div>
-        {periodDisplay.time && (
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accentText)', lineHeight: 1 }}>{periodDisplay.time}</div>
-            {periodDisplay.next && <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>til {periodDisplay.next}</div>}
+      <div style={{ background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, background: 'var(--accentSoft)', color: 'var(--accentText)', flexShrink: 0 }}>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}>DAY</span>
+            <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 19, fontWeight: 600, lineHeight: 1 }}>{dayType || '—'}</span>
           </div>
-        )}
-      </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10.5, color: 'var(--faint)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{periodDisplay.label}</div>
+            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 16, fontWeight: 500, marginTop: 2, color: 'var(--text)' }}>{periodDisplay.name}</div>
+          </div>
+          {periodDisplay.time && (
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accentText)', lineHeight: 1 }}>{periodDisplay.time}</div>
+              {periodDisplay.next && <div style={{ fontSize: 10.5, color: 'var(--muted)', marginTop: 2 }}>til {periodDisplay.next}</div>}
+            </div>
+          )}
+        </div>
 
-      {/* AI Briefing */}
-      <div style={{ marginTop: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Label>This morning</Label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--faint)' }}>
-            {briefing && <span style={{ fontSize: 11 }}>{new Date(briefing.generated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
-            <button onClick={generate} disabled={generating} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accentText)', background: 'none', border: 'none', padding: 0, opacity: generating ? 0.5 : 1 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: generating ? 'spin 1s linear infinite' : 'none' }}>
-                <path d="M20 11a8 8 0 1 0-1 6"/>
-                <path d="M20 4v5h-5"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-        <p style={{ margin: 0, fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15.5, lineHeight: 1.62, color: 'var(--text)', letterSpacing: '-0.003em' }}>
-          {briefingText}
-        </p>
+        <BriefingSection briefing={briefing} generating={generating} generate={generate} />
       </div>
-
-      {/* Priorities */}
-      {priorities.length > 0 && (
-        <div style={{ marginTop: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Label>Priorities</Label>
-            <div style={{ fontSize: 11, color: 'var(--faint)' }}>Reordered by Clark</div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {priorities.map(item => {
-              const dateInfo = getTaskDateInfo(item)
-              return (
-                <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'flex-start', gap: 11, padding: '9px 2px', cursor: 'pointer' }}>
-                  <CheckBox done={item.done} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                      <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)' }}>{dateInfo.label}</span>
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '1.5px 7px', borderRadius: 999, background: 'var(--accentSoft)', color: 'var(--accentText)' }}>{item.source}</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
     </Card>
   )
 }
 
 // ─── Brain Dump Card ────────────────────────────────────────────
-function BrainDumpCard({ onParsed }) {
+export function BrainDumpCard({ onParsed }) {
   const [text, setText] = useState('')
   const [status, setStatus] = useState(null) // null | 'parsing' | 'done' | 'error'
   const [lastResult, setLastResult] = useState(null)
@@ -149,6 +154,7 @@ function BrainDumpCard({ onParsed }) {
       setLastResult(data?.parsed)
       setStatus('done')
       setText('')
+      triggerHaptic()
       onParsed?.()
     } catch {
       setStatus('error')
@@ -174,7 +180,7 @@ function BrainDumpCard({ onParsed }) {
       <textarea
         value={text}
         onChange={e => { setText(e.target.value); setStatus(null) }}
-        placeholder={'Tell Clark anything — "Bio notes are due next class," "Got an 88 on the HOTA essay," "Remind the Spanish Club about Thursday"…'}
+        placeholder="Tell Clark anything"
         onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') parse() }}
         style={{
           display: 'block', width: '100%', marginTop: 12,
@@ -216,89 +222,122 @@ function isClubTask(task) {
     value.includes('nhs') ||
     value.includes('beta club') ||
     value.includes('spanish club') ||
-    value.includes('senior class')
+    value.includes('student council')
   )
 }
 
-function TasksCard({ tasks, toggleTask, filter, onFilter }) {
-  const filtered = tasks.filter(t =>
-    filter === 'All' ? true : filter === 'Priority' ? t.priority : filter === 'Club' ? isClubTask(t) : t.category === filter
+function TaskRow({ item, toggleTask }) {
+  const dateInfo = getTaskDateInfo(item)
+  const tagLabel = displayTaskTag(item.tag)
+  return (
+    <div onClick={() => { triggerHaptic(); toggleTask(item.id) }} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
+      <CheckBox done={item.done} small />
+      <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
+      {tagLabel && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{tagLabel}</span>}
+      <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{dateInfo.label}</span>
+    </div>
   )
+}
+
+function ClassSection({ label, tasks, toggleTask, expanded, onToggle }) {
+  const contentRef = useRef(null)
+  const [maxHeight, setMaxHeight] = useState(0)
+
+  useEffect(() => {
+    if (expanded && contentRef.current) setMaxHeight(contentRef.current.scrollHeight)
+    else setMaxHeight(0)
+  }, [expanded, tasks])
 
   return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div style={{ borderTop: '1px solid var(--border)' }}>
+      <button
+        onClick={() => { triggerHaptic(); onToggle() }}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+          background: 'none', border: 'none', padding: '11px 2px', cursor: 'pointer', fontFamily: 'inherit',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{label}</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '1.5px 7px', borderRadius: 999, background: 'var(--cardAlt)', color: 'var(--muted)' }}>{tasks.length}</span>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+      <div style={{ overflow: 'hidden', maxHeight, opacity: expanded ? 1 : 0, transition: 'max-height 0.25s ease, opacity 0.2s ease' }}>
+        <div ref={contentRef}>
+          {tasks.map(item => <TaskRow key={item.id} item={item} toggleTask={toggleTask} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// `fill` is opt-in only (desktop's Tasks column filler — see
+// DesktopColumn1.jsx); mobile never passes it, so this whole prop is a
+// no-op there and every style below stays `undefined` (unset).
+export function TasksCard({ tasks, toggleTask, filter, onFilter, fill }) {
+  const [expandedClasses, setExpandedClasses] = useState({})
+  const toggleClass = (label) => setExpandedClasses(prev => ({ ...prev, [label]: !prev[label] }))
+
+  const filtered = tasks.filter(t =>
+    filter === 'All' ? true : filter === 'Club' ? isClubTask(t) : t.category === filter
+  )
+
+  const classGroups = filter === 'Class'
+    ? (() => {
+        const byTag = new Map(CLASS_TAG_ORDER.map(tag => [tag, []]))
+        const other = []
+        for (const t of filtered) {
+          const label = displayTaskTag(t.tag)
+          if (label && byTag.has(label)) byTag.get(label).push(t)
+          else other.push(t)
+        }
+        return { byTag, other }
+      })()
+    : null
+
+  return (
+    <Card style={fill ? { display: 'flex', flexDirection: 'column', flex: '1 1 0%', minHeight: 0, boxSizing: 'border-box' } : undefined}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <Label>Tasks</Label>
         <div style={{ fontSize: 11.5, color: 'var(--faint)' }}>{filtered.length} active</div>
       </div>
-      <div style={{ display: 'flex', gap: 7, marginTop: 13, flexWrap: 'wrap' }}>
-        {['All', 'Class', 'Club', 'Priority'].map(label => (
+      <div style={{ display: 'flex', gap: 7, marginTop: 13, flexWrap: 'wrap', flexShrink: 0 }}>
+        {['All', 'Class', 'Club'].map(label => (
           <button key={label} onClick={() => onFilter(label)} style={{ padding: '6px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', background: label === filter ? 'var(--accent)' : 'transparent', color: label === filter ? '#fff' : 'var(--muted)', border: label === filter ? 'none' : '1px solid var(--border)' }}>
             {label}
           </button>
         ))}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
-        {filtered.map(item => {
-          const dateInfo = getTaskDateInfo(item)
-          const tagLabel = displayTaskTag(item.tag)
-          return (
-            <div key={item.id} onClick={() => toggleTask(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '11px 2px', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
-              <CheckBox done={item.done} small />
-              <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? 'var(--faint)' : 'var(--text)' }}>{sentenceCaseTaskTitle(item.title)}</div>
-              {tagLabel && <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 8px', borderRadius: 6, background: 'var(--cardAlt)', color: 'var(--muted)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{tagLabel}</span>}
-              <span style={{ fontSize: 11.5, color: dateInfo.isPast ? OVERDUE_COLOR : 'var(--muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{dateInfo.label}</span>
-            </div>
-          )
-        })}
-      </div>
-    </Card>
-  )
-}
-
-// ─── Calendar Card ───────────────────────────────────────────────
-function CalendarCard() {
-  const cells = []
-  for (let i = 0; i < CAL_FIRST_DOW; i++) cells.push(null)
-  for (let d = 1; d <= CAL_DAYS; d++) cells.push(d)
-  while (cells.length % 7) cells.push(null)
-  const weeks = []
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
-
-  return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-        <Label>Calendar</Label>
-        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 15, fontWeight: 500, color: 'var(--text)' }}>{CAL_MONTH}</div>
-      </div>
-      <div style={{ display: 'flex', marginBottom: 4 }}>
-        {['S','M','T','W','T','F','S'].map((d, i) => (
-          <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10.5, fontWeight: 600, color: 'var(--faint)' }}>{d}</div>
-        ))}
-      </div>
-      {weeks.map((week, wi) => (
-        <div key={wi} style={{ display: 'flex' }}>
-          {week.map((day, di) => {
-            const isToday = day === CAL_TODAY
-            const hasEvent = day != null && CAL_EVENTS.has(day) && !isToday
-            const isEvent = day != null && CAL_EVENTS.has(day)
-            return (
-              <div key={di} style={{ flex: 1, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                {day != null && (
-                  <>
-                    <div style={isToday ? { width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600, background: 'var(--accent)', color: '#fff' }
-                      : isEvent ? { width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 600, color: 'var(--accentText)' }
-                      : { width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>
-                      {day}
-                    </div>
-                    {hasEvent && <div style={{ position: 'absolute', bottom: 4, width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)' }}/>}
-                  </>
-                )}
-              </div>
-            )
-          })}
+      {classGroups ? (
+        <div style={fill ? { marginTop: 6, flex: '1 1 0%', minHeight: 0, overflowY: 'auto' } : { marginTop: 6 }}>
+          {CLASS_TAG_ORDER.map(tag => (
+            <ClassSection
+              key={tag}
+              label={tag}
+              tasks={classGroups.byTag.get(tag)}
+              toggleTask={toggleTask}
+              expanded={!!expandedClasses[tag]}
+              onToggle={() => toggleClass(tag)}
+            />
+          ))}
+          {classGroups.other.length > 0 && (
+            <ClassSection
+              label="Other"
+              tasks={classGroups.other}
+              toggleTask={toggleTask}
+              expanded={!!expandedClasses.Other}
+              onToggle={() => toggleClass('Other')}
+            />
+          )}
         </div>
-      ))}
+      ) : (
+        <div style={fill ? { display: 'flex', flexDirection: 'column', marginTop: 6, flex: '1 1 0%', minHeight: 0, overflowY: 'auto' } : { display: 'flex', flexDirection: 'column', marginTop: 6 }}>
+          {filtered.map(item => <TaskRow key={item.id} item={item} toggleTask={toggleTask} />)}
+        </div>
+      )}
     </Card>
   )
 }
@@ -330,14 +369,27 @@ const FORMAL_GRADE_NAMES = {
   'math analysis and approaches': 'IB Applications and Interpretations',
   'ib applications and interpretations': 'IB Applications and Interpretations',
   'applications and interpretations': 'IB Applications and Interpretations',
+  micro: 'ECO 251 – Principles of Microeconomics',
+  microeconomics: 'ECO 251 – Principles of Microeconomics',
+  'principles of microeconomics': 'ECO 251 – Principles of Microeconomics',
+  'eco 251': 'ECO 251 – Principles of Microeconomics',
+  macro: 'ECO 252 – Principles of Macroeconomics',
+  macroeconomics: 'ECO 252 – Principles of Macroeconomics',
+  'principles of macroeconomics': 'ECO 252 – Principles of Macroeconomics',
+  'eco 252': 'ECO 252 – Principles of Macroeconomics',
 }
 
+// The two CFCC dual-enrollment classes (Micro/Macro) are grades-only —
+// no block/period, never part of the A/B schedule or current/next-class
+// logic — so they only ever show up here, not in DashboardCard/schedule.
 const FORMAL_GRADE_ORDER = [
   'IB History of the Americas',
   'IB Biology',
   'IB Theory of Knowledge',
   'IB Language and Literature',
   'IB Applications and Interpretations',
+  'ECO 251 – Principles of Microeconomics',
+  'ECO 252 – Principles of Macroeconomics',
 ]
 
 function normalizeClassName(name) {
@@ -349,7 +401,12 @@ function normalizeClassName(name) {
 }
 
 function gradeDisplayName(className) {
-  return FORMAL_GRADE_NAMES[normalizeClassName(className)] || null
+  const key = normalizeClassName(className)
+  if (FORMAL_GRADE_NAMES[key]) return FORMAL_GRADE_NAMES[key]
+  // The AI (and stored rows) sometimes echo the formal name itself back
+  // verbatim (e.g. "ECO 251 – Principles of Microeconomics") rather than a
+  // short alias — match that directly too, so nothing falls through.
+  return FORMAL_GRADE_ORDER.find(formal => normalizeClassName(formal) === key) || null
 }
 
 function gradeNumber(percentage) {
@@ -357,7 +414,7 @@ function gradeNumber(percentage) {
   return value ? value[0] : '—'
 }
 
-function GradesCard() {
+export function GradesCard() {
   const { grades } = useGrades()
   const formattedGrades = FORMAL_GRADE_ORDER.map(displayName => {
     const match = grades.find(g => gradeDisplayName(g.class_name) === displayName)
@@ -389,80 +446,30 @@ function GradesCard() {
   )
 }
 
-// ─── Inbox Card ──────────────────────────────────────────────────
-function InboxCard() {
-  const { emails, draftReply } = useEmails()
-  const [drafts, setDrafts] = useState({})
-  const [loading, setLoading] = useState({})
-  const [syncing, setSyncing] = useState(false)
-
-  const handleDraftReply = async (emailId) => {
-    if (drafts[emailId]) { setDrafts(d => ({ ...d, [emailId]: null })); return }
-    setLoading(l => ({ ...l, [emailId]: true }))
-    try {
-      const draft = await draftReply(emailId)
-      setDrafts(d => ({ ...d, [emailId]: draft }))
-    } finally {
-      setLoading(l => ({ ...l, [emailId]: false }))
-    }
-  }
-
-  const syncOutlook = async () => {
-    setSyncing(true)
-    try {
-      await supabase.functions.invoke('sync-outlook')
-    } finally {
-      setSyncing(false)
-    }
-  }
+// ─── Inbox Card (Today preview — full inbox now lives in the Inbox tab) ──
+function InboxCard({ onOpenInbox }) {
+  const { emails } = useEmails()
 
   return (
     <Card>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div onClick={() => { triggerHaptic(); onOpenInbox() }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', margin: '-8px 0 -4px', cursor: 'pointer' }}>
         <Label>Inbox</Label>
-        <button
-          onClick={syncOutlook}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 11, fontWeight: 600, color: 'var(--accentText)',
-            background: 'var(--accentSoft)', border: 'none', borderRadius: 7,
-            padding: '4px 9px', cursor: syncing ? 'default' : 'pointer',
-            fontFamily: 'inherit', opacity: syncing ? 0.6 : 1,
-          }}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'spin 1s linear infinite' : 'none' }}>
-            <path d="M23 4v6h-6M1 20v-6h6"/>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-          </svg>
-          {syncing ? 'Syncing…' : 'Sync Outlook'}
-        </button>
       </div>
-      {emails.map(m => (
-        <div key={m.id} style={{ padding: '14px 0', borderTop: '1px solid var(--border)' }}>
+      {emails.length === 0 && (
+        <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 12.5, color: 'var(--faint)' }}>
+          No emails yet. Tap to sync your inbox.
+        </div>
+      )}
+      {emails.slice(0, 3).map(m => (
+        <div key={m.id} onClick={(e) => { e.stopPropagation(); triggerHaptic(); onOpenInbox(m.id) }} style={{ padding: '14px 0', borderTop: '1px solid var(--border)', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accentSoft)', color: 'var(--accentText)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m.initials}</div>
+            {!m.is_read && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}
             <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text)' }}>{m.from_name}</div>
             <span style={{ fontSize: 11, color: 'var(--faint)', flexShrink: 0 }}>{new Date(m.received_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
           </div>
           <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 9, color: 'var(--text)' }}>{m.subject}</div>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.5, marginTop: 3 }}>{m.snippet}</div>
-          {drafts[m.id] && (
-            <div style={{ marginTop: 11, background: 'var(--cardAlt)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px', fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>
-              {drafts[m.id]}
-            </div>
-          )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginTop: 11 }}>
-            <div onClick={() => handleDraftReply(m.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#fff', background: 'var(--accent)', padding: '7px 12px', borderRadius: 9, cursor: 'pointer', opacity: loading[m.id] ? 0.6 : 1 }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>
-              {loading[m.id] ? 'Drafting…' : drafts[m.id] ? 'Hide draft' : 'Draft reply'}
-            </div>
-            {m.headers_cleaned && (
-              <span style={{ fontSize: 10.5, color: 'var(--faint)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accentText)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
-                headers cleaned
-              </span>
-            )}
-          </div>
         </div>
       ))}
     </Card>
@@ -470,17 +477,18 @@ function InboxCard() {
 }
 
 // ─── Screen ──────────────────────────────────────────────────────
-export default function TodayScreen({ filter, onFilter, onCloseQuick }) {
-  const { tasks, priorities, toggleTask, refetch } = useTasks()
+export default function TodayScreen({ filter, onFilter, onOpenCalendar, onOpenInbox }) {
+  const { tasks, toggleTask, refetch } = useTasks()
 
   return (
-    <div onClick={onCloseQuick} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
-      <DashboardCard priorities={priorities} toggleTask={toggleTask} />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 16px 18px' }}>
+      <TopPills />
+      <DashboardCard />
       <BrainDumpCard onParsed={refetch} />
       <TasksCard tasks={tasks} toggleTask={toggleTask} filter={filter} onFilter={onFilter} />
-      <CalendarCard />
+      <CalendarCard tasks={tasks} onOpenCalendar={onOpenCalendar} />
       <GradesCard />
-      <InboxCard />
+      <InboxCard onOpenInbox={onOpenInbox} />
     </div>
   )
 }

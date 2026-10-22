@@ -1,20 +1,35 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { supabase } from './lib/supabase.js'
+import { timeOfDayGreeting } from './lib/greeting.js'
+import { triggerHaptic } from './lib/haptics.js'
 
-const GREETING = {
-  id: 'g0', role: 'clark',
-  text: "Hey — I'm Clark. Ask me anything about your schedule, tasks, grades, or inbox.",
+function makeGreeting() {
+  return {
+    id: 'g0', role: 'clark',
+    text: `${timeOfDayGreeting()}, Greyson. Ask me anything.`,
+  }
 }
 
 export default function AskScreen({ onBack }) {
-  const [messages, setMessages] = useState([GREETING])
+  const [messages, setMessages] = useState(() => [makeGreeting()])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const prevCountRef = useRef(messages.length)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    // Skip the mount-time fire (prevCountRef starts equal to the
+    // initial length) — scrolling then bubbles up through ancestor
+    // scroll containers and jumps the whole page, since the greeting
+    // is already the only thing in view. Only autoscroll once an actual
+    // message gets appended to the conversation.
+    if (messages.length > prevCountRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+    prevCountRef.current = messages.length
   }, [messages])
 
   const send = useCallback(async (text) => {
@@ -46,6 +61,7 @@ export default function AskScreen({ onBack }) {
       }])
     } finally {
       setLoading(false)
+      triggerHaptic()
     }
   }, [messages, loading])
 
@@ -57,22 +73,12 @@ export default function AskScreen({ onBack }) {
   }, [input, send])
 
   return (
-    /*
-      height: 100dvh = dynamic viewport height.
-      On iOS, dvh shrinks when the keyboard opens, so the layout
-      compresses and the input stays above the keyboard automatically.
-    */
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      height: '100dvh',
-      background: 'var(--bg)',
-      position: 'fixed', inset: 0,
-      zIndex: 10,
-    }}>
+    // Content for Sheet's `flush` mode — the panel itself (glass, drag
+    // handle, slide/dismiss) is Sheet.jsx's job; this just fills it.
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
       {/* Header */}
       <div style={{
-        background: 'var(--bg)',
-        padding: '20px 16px 14px',
+        padding: '4px 16px 14px',
         borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', gap: 12,
         flexShrink: 0,
@@ -101,18 +107,12 @@ export default function AskScreen({ onBack }) {
               <path d="M9.5 11h.01M13 11h.01M16.5 11h.01"/>
             </svg>
           </div>
-          <div>
-            <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 18, fontWeight: 600, lineHeight: 1, color: 'var(--text)' }}>
-              Ask Clark
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block' }}/>
-              Sees your schedule, tasks &amp; inbox
-            </div>
+          <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: 18, fontWeight: 600, lineHeight: 1, color: 'var(--text)' }}>
+            Ask Clark
           </div>
         </div>
         <button
-          onClick={() => setMessages([GREETING])}
+          onClick={() => setMessages([makeGreeting()])}
           style={{
             padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)',
             background: 'transparent', color: 'var(--muted)', fontSize: 12,
@@ -150,7 +150,6 @@ export default function AskScreen({ onBack }) {
 
       {/* Input — always at bottom, above keyboard */}
       <div style={{
-        background: 'var(--bg)',
         borderTop: '1px solid var(--border)',
         padding: '10px 14px 28px',
         display: 'flex', alignItems: 'flex-end', gap: 10,
@@ -166,7 +165,7 @@ export default function AskScreen({ onBack }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Clark anything… (use mic on keyboard for voice)"
+            placeholder="Ask Clark anything"
             rows={1}
             style={{
               flex: 1, fontSize: 14.5, fontFamily: 'inherit',
@@ -200,6 +199,41 @@ export default function AskScreen({ onBack }) {
   )
 }
 
+const markdownComponents = {
+  p: ({ node, ...props }) => <p style={{ margin: '0 0 8px', lineHeight: 1.55 }} {...props} />,
+  strong: ({ node, ...props }) => <strong style={{ fontWeight: 700 }} {...props} />,
+  em: ({ node, ...props }) => <em {...props} />,
+  ul: ({ node, ...props }) => <ul style={{ margin: '0 0 8px', paddingLeft: 20 }} {...props} />,
+  ol: ({ node, ...props }) => <ol style={{ margin: '0 0 8px', paddingLeft: 20 }} {...props} />,
+  li: ({ node, ...props }) => <li style={{ marginBottom: 3 }} {...props} />,
+  a: ({ node, ...props }) => <a style={{ color: 'var(--accentText)' }} target="_blank" rel="noopener noreferrer" {...props} />,
+  code: ({ node, inline, ...props }) => inline
+    ? <code style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 5, padding: '1px 5px', fontSize: '0.9em', fontFamily: 'ui-monospace, monospace' }} {...props} />
+    : <code style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.9em' }} {...props} />,
+  pre: ({ node, ...props }) => (
+    <pre style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', overflowX: 'auto', margin: '0 0 8px' }} {...props} />
+  ),
+  blockquote: ({ node, ...props }) => (
+    <blockquote style={{ margin: '0 0 8px', paddingLeft: 12, borderLeft: '3px solid var(--border)', color: 'var(--muted)' }} {...props} />
+  ),
+  h1: ({ node, ...props }) => <div style={{ fontSize: 17, fontWeight: 700, margin: '2px 0 8px' }} {...props} />,
+  h2: ({ node, ...props }) => <div style={{ fontSize: 16, fontWeight: 700, margin: '2px 0 8px' }} {...props} />,
+  h3: ({ node, ...props }) => <div style={{ fontSize: 15, fontWeight: 700, margin: '2px 0 6px' }} {...props} />,
+  hr: ({ node, ...props }) => <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '10px 0' }} {...props} />,
+  table: ({ node, ...props }) => (
+    <div style={{ overflowX: 'auto', margin: '0 0 8px' }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.95em' }} {...props} />
+    </div>
+  ),
+  thead: ({ node, ...props }) => <thead {...props} />,
+  th: ({ node, ...props }) => (
+    <th style={{ textAlign: 'left', padding: '5px 10px', borderBottom: '1.5px solid var(--borderStrong)', fontWeight: 700, whiteSpace: 'nowrap' }} {...props} />
+  ),
+  td: ({ node, ...props }) => (
+    <td style={{ padding: '5px 10px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }} {...props} />
+  ),
+}
+
 function ChatBubble({ msg }) {
   const isUser = msg.role === 'user'
   return (
@@ -209,15 +243,21 @@ function ChatBubble({ msg }) {
         background: 'var(--accent)', color: '#fff',
         padding: '11px 15px', borderRadius: '18px 18px 5px 18px',
         fontSize: 14.5, lineHeight: 1.5,
+        whiteSpace: 'pre-wrap',
       } : {
         maxWidth: '88%',
         background: 'var(--cardAlt)', color: 'var(--text)',
         border: '1px solid var(--border)',
         padding: '12px 15px', borderRadius: '18px 18px 18px 5px',
-        fontSize: 14.5, lineHeight: 1.55,
-        whiteSpace: 'pre-wrap',
+        fontSize: 14.5,
       }}>
-        {msg.text}
+        {isUser
+          ? msg.text
+          : (
+            <div className="clark-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.text}</ReactMarkdown>
+            </div>
+          )}
       </div>
     </div>
   )

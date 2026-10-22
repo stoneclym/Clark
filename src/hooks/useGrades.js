@@ -15,8 +15,11 @@ export function useGrades() {
         setLoading(false)
       })
 
+    // Unique topic per hook instance — a duplicate topic would return the
+    // same channel object from supabase-js, which throws if a second mount
+    // adds callbacks to an already-subscribed channel.
     const channel = supabase
-      .channel('grades')
+      .channel(`grades-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'grades' }, () => {
         supabase.from('grades').select('*').order('class_order').then(({ data }) => {
           if (data) setGrades(data)

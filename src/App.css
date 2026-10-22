@@ -58,3 +58,95 @@ button {
     box-shadow: 0 40px 80px rgba(0,0,0,0.20), 0 0 0 1px rgba(0,0,0,0.10);
   }
 }
+
+/* ─── Desktop (>=1024px) ────────────────────────────────────────────
+   Undoes the 520px "phone mockup" treatment above — desktop gets a
+   full-bleed dashboard layout instead, so the app-frame goes back to
+   filling the real viewport. 520-1023px (tablet) keeps the phone-mockup
+   mobile layout entirely as-is; only >=1024px switches. */
+@media (min-width: 1024px) {
+  .app-shell {
+    padding: 0;
+    align-items: stretch;
+  }
+  .app-frame {
+    width: 100%;
+    max-width: none;
+    min-height: 100vh;
+    border-radius: 0;
+    overflow: visible;
+    box-shadow: none;
+  }
+}
+
+.clark-markdown > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* ─── Motion ──────────────────────────────────────────────────────
+   No animation library in this project — --spring approximates a
+   snappy, non-oscillating spring (stiffness ~320 / damping ~32) via a
+   tuned cubic-bezier, shared by every glass-surface transition (sheets,
+   the FAB, the apps dropdown, Settings' swipe-back snap). */
+:root {
+  --spring: 300ms cubic-bezier(0.25, 0.9, 0.35, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --spring: 120ms linear;
+  }
+}
+
+/* ─── Card elevation ──────────────────────────────────────────────
+   Mobile cards use a hairline border + a barely-there shadow. Desktop
+   (Batch 8) wants flat, solid, soft-shadow-only cards with no border —
+   reusing the exact same mobile card components (Card/DashboardCard/
+   BrainDumpCard/TasksCard/GradesCard in TodayScreen.jsx) rather than
+   forking them, so this is the one thing about them that's breakpoint-
+   aware, via plain CSS custom properties (invisible to mobile, which
+   never matches the >=1024px query). */
+:root {
+  --card-border: 1px solid var(--border);
+  --card-shadow: 0 1px 2px rgba(40,36,28,0.05);
+}
+@media (min-width: 1024px) {
+  :root {
+    --card-border: none;
+    --card-shadow: 0 4px 20px rgba(40,36,28,0.08);
+  }
+}
+
+/* ─── Liquid glass ────────────────────────────────────────────────
+   Reserved for the transient nav/chrome layer only (tab bar, sheets, the
+   apps dropdown) — content cards stay flat/solid.
+
+   .glass is applied to a plain position:absolute; inset:0 filler that is
+   the FIRST CHILD of a separate outer wrapper owning overflow:hidden +
+   border-radius (see Sheet.jsx/TabBar.jsx/TopPills.jsx). Some WebKit
+   versions don't reliably clip a backdrop-filter to its OWN border-radius
+   (even with border-radius: inherit on the same element), which showed
+   up as a square blur "halo" poking past a sheet's rounded corners —
+   clipping a plain child via an ancestor's overflow:hidden instead is a
+   much more broadly-supported code path. */
+.glass {
+  background: var(--glassSurface);
+  -webkit-backdrop-filter: blur(16px) saturate(210%);
+  backdrop-filter: blur(16px) saturate(210%);
+  border: 1px solid var(--glassBorder);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass {
+    background: var(--surface-2);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: var(--border);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: var(--surface-2) !important;
+    border-color: var(--border) !important;
+  }
+}

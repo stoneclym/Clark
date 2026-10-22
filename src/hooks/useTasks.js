@@ -1,25 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase.js'
 import { compareTaskDates } from '../lib/taskDates.js'
-
-function priorityRank(task) {
-  return Number.isFinite(Number(task.priority_rank)) ? Number(task.priority_rank) : Number.MAX_SAFE_INTEGER
-}
-
-function comparePriority(a, b) {
-  if (a.priority !== b.priority) return a.priority ? -1 : 1
-  const rankDiff = priorityRank(a) - priorityRank(b)
-  if (rankDiff !== 0) return rankDiff
-  return 0
-}
+import { CLUB_TASK_PREFIX, mapClubTask } from '../lib/clubTaskAdapter.js'
 
 function sortTasks(tasks) {
   return [...tasks].sort((a, b) => {
     const dateDiff = compareTaskDates(a, b)
     if (dateDiff !== 0) return dateDiff
-
-    const priorityDiff = comparePriority(a, b)
-    if (priorityDiff !== 0) return priorityDiff
 
     return new Date(a.created_at || 0) - new Date(b.created_at || 0)
   })
@@ -30,20 +17,24 @@ export function useTasks() {
   const [loading, setLoading] = useState(true)
 
   const fetchTasks = useCallback(async () => {
-    const { data } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('done', false)
-      .order('created_at', { ascending: true })
-    if (data) setTasks(sortTasks(data))
+    const [{ data: taskRows }, { data: clubTaskRows }] = await Promise.all([
+      supabase.from('tasks').select('*').eq('done', false).order('created_at', { ascending: true }),
+      supabase.from('club_tasks').select('*, clubs(name)').eq('done', false).order('created_at', { ascending: true }),
+    ])
+    const merged = [...(taskRows || []), ...(clubTaskRows || []).map(mapClubTask)]
+    setTasks(sortTasks(merged))
     setLoading(false)
   }, [])
 
   useEffect(() => {
     fetchTasks()
+    // Unique topic per hook instance — a duplicate topic would return the
+    // same channel object from supabase-js, which throws if a second mount
+    // adds callbacks to an already-subscribed channel.
     const channel = supabase
-      .channel('tasks')
+      .channel(`tasks-realtime-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchTasks)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'club_tasks' }, fetchTasks)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [fetchTasks])
@@ -51,11 +42,15 @@ export function useTasks() {
   const toggleTask = useCallback(async (id) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
     const task = tasks.find(t => t.id === id)
+
+    if (typeof id === 'string' && id.startsWith(CLUB_TASK_PREFIX)) {
+      await supabase.from('club_tasks').update({ done: !task?.done }).eq('id', id.slice(CLUB_TASK_PREFIX.length))
+      return
+    }
     await supabase.from('tasks').update({ done: !task?.done }).eq('id', id)
   }, [tasks])
 
   const allTasks = sortTasks(tasks)
-  const priorities = allTasks.filter(t => t.priority)
 
-  return { tasks: allTasks, priorities, loading, toggleTask, refetch: fetchTasks }
+  return { tasks: allTasks, loading, toggleTask, refetch: fetchTasks }
 }

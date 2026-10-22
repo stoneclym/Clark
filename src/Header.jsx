@@ -1,62 +1,6 @@
-const QUICK_LINKS = [
-  {
-    id: 'outlook',
-    label: 'Outlook',
-    glyph: 'O',
-    tint: '#0F6CBD',
-    deepLink: 'ms-outlook://',
-    webUrl: 'https://outlook.office.com/mail/',
-  },
-  {
-    id: 'canvas',
-    label: 'Canvas',
-    glyph: 'C',
-    tint: '#D64541',
-    deepLink: 'canvas-courses://',
-    webUrl: 'https://nhcs.instructure.com',
-  },
-  {
-    id: 'ic',
-    label: 'Infinite Campus',
-    glyph: 'IC',
-    tint: '#3E8E5A',
-    deepLink: 'shortcuts://run-shortcut?name=Open%20Campus%20Student',
-    webUrl: 'https://650.ncsis.gov/campus/portal/students/psu650nhcs.jsp',
-  },
-]
+import { triggerHaptic } from './lib/haptics.js'
 
-function openExternal(url) {
-  const externalWindow = window.open(url, '_blank', 'noopener,noreferrer')
-  if (externalWindow) externalWindow.opener = null
-}
-
-function openApp(deepLink, webUrl) {
-  if (!deepLink) {
-    openExternal(webUrl)
-    return
-  }
-
-  // Try the native-app scheme from the current PWA window so iOS treats it
-  // like a user-initiated app handoff, not a blocked popup or hidden frame.
-  // If the app opens, Clark becomes hidden and we skip the web fallback.
-  let openedNative = false
-  const markOpenedNative = () => {
-    if (document.visibilityState === 'hidden') openedNative = true
-  }
-  document.addEventListener('visibilitychange', markOpenedNative, { once: true })
-
-  window.location.href = deepLink
-
-  setTimeout(() => {
-    document.removeEventListener('visibilitychange', markOpenedNative)
-
-    if (!openedNative && document.visibilityState === 'visible') {
-      openExternal(webUrl)
-    }
-  }, 1600)
-}
-
-export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
+export default function Header({ onOpenSettings, onLock }) {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
@@ -67,7 +11,12 @@ export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
       borderBottom: '1px solid var(--border)',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingBottom: 14 }}>
-        <div>
+        <div
+          onClick={() => { triggerHaptic(); window.location.reload() }}
+          role="button"
+          aria-label="Refresh Clark"
+          style={{ cursor: 'pointer' }}
+        >
           <div style={{
             fontFamily: "'Source Serif 4', Georgia, serif",
             fontSize: 26, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1,
@@ -76,23 +25,20 @@ export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
           <div style={{ marginTop: 4, fontSize: 12.5, color: 'var(--muted)' }}>{today}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          {/* Quick links toggle */}
+          {/* Lock */}
           <button
-            onClick={onToggleQuick}
+            onClick={onLock}
+            aria-label="Lock Clark"
             style={{
               cursor: 'pointer', width: 38, height: 38, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              border: quickOpen ? '1px solid transparent' : '1px solid var(--border)',
-              background: quickOpen ? 'var(--accentSoft)' : 'var(--card)',
-              color: quickOpen ? 'var(--accentText)' : 'var(--muted)',
-              padding: 0,
+              border: '1px solid var(--border)', background: 'var(--card)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--muted)', flexShrink: 0, padding: 0,
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/>
-              <rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/>
-              <rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/>
-              <rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="4" y="11" width="16" height="10" rx="2"/>
+              <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
             </svg>
           </button>
 
@@ -107,57 +53,12 @@ export default function Header({ quickOpen, onToggleQuick, onOpenSettings }) {
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
           </button>
         </div>
       </div>
-
-      {/* Quick links panel */}
-      {quickOpen && (
-        <div style={{ display: 'flex', gap: 9, padding: '0 0 14px' }}>
-          {QUICK_LINKS.map(ql => {
-            const cardStyle = {
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 7,
-              background: 'var(--cardAlt)', border: '1px solid var(--border)',
-              borderRadius: 15, padding: '11px 6px', cursor: 'pointer',
-              textDecoration: 'none',
-            }
-            const cardContent = (
-              <>
-                <div style={{
-                  width: 38, height: 38, borderRadius: 12,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "'Source Serif 4', Georgia, serif",
-                  fontSize: 14, fontWeight: 600, color: '#fff', background: ql.tint, flexShrink: 0,
-                }}>{ql.glyph}</div>
-                <div style={{ fontSize: 11, fontWeight: 600, textAlign: 'center', lineHeight: 1.2, color: 'var(--text)' }}>{ql.label}</div>
-              </>
-            )
-
-            return ql.deepLink ? (
-              <div
-                key={ql.id}
-                onClick={() => openApp(ql.deepLink, ql.webUrl)}
-                style={cardStyle}
-              >
-                {cardContent}
-              </div>
-            ) : (
-              <a
-                key={ql.id}
-                href={ql.webUrl}
-                target="_blank"
-                rel="noopener noreferrer external"
-                style={cardStyle}
-              >
-                {cardContent}
-              </a>
-            )
-          })}
-        </div>
-      )}
     </div>
   )
 }

@@ -1,5 +1,12 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.30.0'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { buildScheduleContext, describeScheduleContext } from '../_shared/scheduleContext.js'
+import { computeDeadline, inferKind, TIME_PATTERN } from '../_shared/deadlineEngine.js'
+import { getValidAccessToken } from '../_shared/microsoftGraph.js'
+import { pushSingleTaskBestEffort } from '../_shared/microsoftTodo.js'
+import { matchClub } from '../_shared/clubMatch.js'
+
+const TASK_KINDS = ['assignment', 'test', 'event']
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! })
 
@@ -27,6 +34,12 @@ const TASK_TITLE_CLASS_PHRASES = [
   'Bio',
   'Lang',
   'TOK',
+  'Principles of Microeconomics',
+  'Principles of Macroeconomics',
+  'Microeconomics',
+  'Macroeconomics',
+  'Micro',
+  'Macro',
 ]
 
 function stripClassPhrases(value: string) {
@@ -102,6 +115,14 @@ const TASK_CLASS_TAGS: Record<string, string> = {
   tok: 'TOK',
   'theory of knowledge': 'TOK',
   'ib theory of knowledge': 'TOK',
+  micro: 'Micro',
+  microeconomics: 'Micro',
+  'principles of microeconomics': 'Micro',
+  'eco 251': 'Micro',
+  macro: 'Macro',
+  macroeconomics: 'Macro',
+  'principles of macroeconomics': 'Macro',
+  'eco 252': 'Macro',
 }
 
 function normalizeClassLabel(value: unknown) {
@@ -115,169 +136,19 @@ function normalizeClassLabel(value: unknown) {
   return TASK_CLASS_TAGS[normalized] || null
 }
 
-const CLARK_TIME_ZONE = 'America/New_York'
-const CLARK_DATE_PARTS = new Intl.DateTimeFormat('en-US', {
-  timeZone: CLARK_TIME_ZONE,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: false,
-})
-
-function clarkParts(date: Date) {
-  return CLARK_DATE_PARTS.formatToParts(date).reduce((parts, part) => {
-    if (part.type !== 'literal') parts[part.type] = Number(part.value)
-    return parts
-  }, {} as Record<string, number>)
-}
-
-function clarkOffsetMs(date: Date) {
-  const parts = clarkParts(date)
-  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour % 24, parts.minute, parts.second, 0)
-  return asUtc - date.getTime()
-}
-
-function clarkYear(date: Date) {
-  return clarkParts(date).year
-}
-
-function clarkMonth(date: Date) {
-  return clarkParts(date).month - 1
-}
-
-function clarkDay(date: Date) {
-  return clarkParts(date).day
-}
-
-function clarkWeekday(date: Date) {
-  const parts = clarkParts(date)
-  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay()
-}
-
-function dateFromClarkParts(year: number, monthIndex: number, day: number, hours = 0, minutes = 0) {
-  const utcGuess = Date.UTC(year, monthIndex, day, hours, minutes, 0, 0)
-  const firstPass = new Date(utcGuess - clarkOffsetMs(new Date(utcGuess)))
-  return new Date(utcGuess - clarkOffsetMs(firstPass))
-}
-
-const WEEKDAYS: Record<string, number> = {
-  sunday: 0,
-  monday: 1,
-  tuesday: 2,
-  wednesday: 3,
-  thursday: 4,
-  friday: 5,
-  saturday: 6,
-}
-
-const MONTH_NAME_PATTERN = /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i
-
-function parseTime(value: string) {
-  const match = value.match(/\b(?:at\s*)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i)
-  if (!match) return null
-
-  let hours = Number(match[1])
-  const minutes = Number(match[2] || 0)
-  const meridiem = match[3].toLowerCase()
-  if (meridiem === 'pm' && hours < 12) hours += 12
-  if (meridiem === 'am' && hours === 12) hours = 0
-  if (hours > 23 || minutes > 59) return null
-  return { hours, minutes }
-}
-
+// If the user's text pairs the due phrase with an explicit clock time
+// ("Friday at 4 PM"), keep the time attached to what the AI extracted.
 function enrichDueText(dueDate: unknown, sourceText: unknown) {
   const due = String(dueDate || '').trim()
   const source = String(sourceText || '')
   if (!due) return due
-  if (parseTime(due)) return due
+  if (TIME_PATTERN.test(due)) return due
 
   const escapedDue = due.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const dueWithTime = source.match(new RegExp(`\\b${escapedDue}\\s+(?:at\\s*)?\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\b`, 'i'))
   if (dueWithTime) return dueWithTime[0]
 
   return due
-}
-
-function applyDeadlineTime(date: Date, time: { hours: number; minutes: number } | null) {
-  const applied = time || { hours: 23, minutes: 59 }
-  return dateFromClarkParts(clarkYear(date), clarkMonth(date), clarkDay(date), applied.hours, applied.minutes)
-}
-function nextWeekdayDate(dayName: string) {
-  const targetDay = WEEKDAYS[dayName]
-  if (targetDay == null) return null
-  const now = new Date()
-  const currentDay = clarkWeekday(now)
-  const diff = (targetDay - currentDay + 7) % 7
-  const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
-  date.setUTCDate(date.getUTCDate() + diff)
-  return date
-}
-function parseDeadlineDate(value: string) {
-  const text = value.trim()
-  const lower = text.toLowerCase()
-
-  const relative = lower.replace(/\s+at\s+.*$/i, '')
-  if (['yesterday', 'today', 'tomorrow'].includes(relative)) {
-    const now = new Date()
-    const date = dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
-    if (relative === 'yesterday') date.setUTCDate(date.getUTCDate() - 1)
-    if (relative === 'tomorrow') date.setUTCDate(date.getUTCDate() + 1)
-    return date
-  }
-
-  if (parseTime(text) && /^(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)$/i.test(text)) {
-    const now = new Date()
-    return dateFromClarkParts(clarkYear(now), clarkMonth(now), clarkDay(now))
-  }
-
-  const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:\b|\s)/)
-  if (dateOnly) return dateFromClarkParts(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
-
-  if (/^\d{4}-\d{2}-\d{2}[T\s]/.test(text)) {
-    const date = new Date(text)
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  const slashDate = text.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?(?:\b|\s)/)
-  if (slashDate) {
-    const year = slashDate[3]
-      ? Number(slashDate[3].length === 2 ? `20${slashDate[3]}` : slashDate[3])
-      : clarkYear(new Date())
-    return dateFromClarkParts(year, Number(slashDate[1]) - 1, Number(slashDate[2]))
-  }
-
-  if (MONTH_NAME_PATTERN.test(text) && /\d{1,2}/.test(text) && /\d{4}/.test(text)) {
-    const dateText = text.replace(/\s+at\s+.*$/i, '')
-    const parsed = new Date(dateText)
-    return Number.isNaN(parsed.getTime()) ? null : dateFromClarkParts(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
-  }
-
-  const weekday = Object.keys(WEEKDAYS).find(day => lower === day || lower.startsWith(`${day} at `))
-  return weekday ? nextWeekdayDate(weekday) : null
-}
-
-function normalizeTaskDeadline(value: unknown) {
-  const originalDueText = String(value || '').trim()
-  if (!originalDueText) {
-    return { due_date: null, due_date_calc: null, due_at: null, original_due_text: null }
-  }
-
-  const date = parseDeadlineDate(originalDueText)
-  if (!date) {
-    return { due_date: originalDueText, due_date_calc: null, due_at: null, original_due_text: originalDueText }
-  }
-
-  const dueAt = applyDeadlineTime(date, parseTime(originalDueText))
-  const dueDateCalc = dueAt.toISOString().slice(0, 10)
-  return {
-    due_date: dueDateCalc,
-    due_date_calc: dueDateCalc,
-    due_at: dueAt.toISOString(),
-    original_due_text: originalDueText,
-  }
 }
 
 const FORMAL_GRADE_NAMES: Record<string, string> = {
@@ -306,6 +177,14 @@ const FORMAL_GRADE_NAMES: Record<string, string> = {
   'math analysis and approaches': 'IB Applications and Interpretations',
   'ib applications and interpretations': 'IB Applications and Interpretations',
   'applications and interpretations': 'IB Applications and Interpretations',
+  micro: 'ECO 251 – Principles of Microeconomics',
+  microeconomics: 'ECO 251 – Principles of Microeconomics',
+  'principles of microeconomics': 'ECO 251 – Principles of Microeconomics',
+  'eco 251': 'ECO 251 – Principles of Microeconomics',
+  macro: 'ECO 252 – Principles of Macroeconomics',
+  macroeconomics: 'ECO 252 – Principles of Macroeconomics',
+  'principles of macroeconomics': 'ECO 252 – Principles of Macroeconomics',
+  'eco 252': 'ECO 252 – Principles of Macroeconomics',
 }
 
 const FORMAL_GRADE_ORDER = [
@@ -314,6 +193,8 @@ const FORMAL_GRADE_ORDER = [
   'IB Theory of Knowledge',
   'IB Language and Literature',
   'IB Applications and Interpretations',
+  'ECO 251 – Principles of Microeconomics',
+  'ECO 252 – Principles of Macroeconomics',
 ]
 
 function normalizeClassName(name: unknown) {
@@ -325,7 +206,13 @@ function normalizeClassName(name: unknown) {
 }
 
 function formalGradeName(name: unknown) {
-  return FORMAL_GRADE_NAMES[normalizeClassName(name)] || null
+  const key = normalizeClassName(name)
+  if (FORMAL_GRADE_NAMES[key]) return FORMAL_GRADE_NAMES[key]
+  // The AI is told to echo the closest class_name from FORMAL_GRADE_ORDER,
+  // which for ECO classes is the full formal string itself (e.g. "ECO 251 –
+  // Principles of Microeconomics") rather than a short alias — match that
+  // directly too, and also use it to recognize existing stored rows.
+  return FORMAL_GRADE_ORDER.find(formal => normalizeClassName(formal) === key) || null
 }
 
 function gradePercentage(value: unknown) {
@@ -344,35 +231,39 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
-  const { text, schedule_context } = await req.json()
+  const { text } = await req.json()
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  // Load grade rows and club rows so AI can match exactly.
-  const [gradesResult, clubsResult] = await Promise.all([
+  // Load grade rows and club rows so AI can match exactly, plus the settings
+  // row so the deadline engine knows the A/B schedule.
+  const [gradesResult, clubsResult, settingsResult] = await Promise.all([
     supabase.from('grades').select('id, class_name').order('class_order'),
     supabase.from('clubs').select('id, name').order('display_order'),
+    supabase.from('settings').select('*').order('created_at', { ascending: false }).limit(1),
   ])
   const gradeRows = gradesResult.data
   const clubRows = (clubsResult.data ?? []) as Array<{ id: string; name: string }>
   const clubNames = clubRows.map(c => c.name)
   const classNames = FORMAL_GRADE_ORDER.join(' | ')
+  const settings = settingsResult.data?.[0] ?? null
+  const scheduleContext = describeScheduleContext(buildScheduleContext(settings))
 
   const SYSTEM = `You are Clark's brain-dump parser. The user speaks or types freely and you extract every action item.
 
 Return ONLY valid JSON with this shape:
 {
   "tasks": [
-    { "title": string, "category": "Class"|"Club"|"College", "tag": string, "due_date": string, "priority": boolean }
+    { "title": string, "category": "Class"|"Club"|"College", "tag": string, "kind": "assignment"|"test"|"event", "due_date": string }
   ],
   "grades": [
     { "class_name": string, "percentage": string, "note": string|null }
   ],
   "club_tasks": [
-    { "club_name": string, "task_text": string }
+    { "club_name": string, "task_text": string, "due_date": string|null }
   ],
   "club_meetings": [
     { "club_name": string, "when": string }
@@ -380,12 +271,12 @@ Return ONLY valid JSON with this shape:
 }
 
 Rules:
-- "due_date" can be natural language: "today", "next class", "Friday", "tomorrow at 4 PM"
-- priority must be a boolean true or false, never a string
+- "due_date" must quote the user's own scheduling words VERBATIM: "today", "next class", "before class", "Friday", "tomorrow at 4 PM". Do NOT calculate, reword, or resolve dates yourself — deterministic code computes the real date from your extraction.
+- "kind" classifies the item: "test" for tests/quizzes/exams, "event" for things you attend at a set time, "assignment" for anything you produce or complete
 - Do not use status words like "overdue", "late", "today", "tomorrow", or "yesterday" as task tags. Tags are only for a class, club, or category.
 - For grades: extract percentage grades only, not IB 1-7 scores. Use the closest class_name from this list: ${classNames}
 - For club_meetings: use when the user announces a club meeting happening at a specific time ("NHS meeting tomorrow at 3:30", "Beta Club meets Friday", "We have a Spanish Club meeting next week"). "when" is the natural-language time. You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
-- For club_tasks: use when the user mentions something they need to DO for a club ("make slides for Spanish Club", "print forms for NHS"). You MUST use the exact club_name from this list: ${clubNames.join(' | ')}
+- For club_tasks: use when the user mentions something they need to DO for a club ("make slides for Spanish Club", "print forms for NHS"). You MUST use the exact club_name from this list: ${clubNames.join(' | ')}. "due_date" follows the same verbatim rule as tasks' due_date, or null if no due date was mentioned.
 - CRITICAL DISTINCTION: A meeting announcement (event on the calendar) → club_meetings. An action item to complete → club_tasks or tasks. NEVER create a generic task for a meeting announcement.
 - Only include keys with items; omit empty arrays
 - No markdown, no explanation — raw JSON only`
@@ -396,7 +287,7 @@ Rules:
     system: SYSTEM,
     messages: [{
       role: 'user',
-      content: schedule_context ? `Schedule context: ${schedule_context}\n\nBrain dump: ${text}` : text,
+      content: scheduleContext ? `Schedule context (computed, read-only):\n${scheduleContext}\n\nBrain dump: ${text}` : text,
     }],
   })
 
@@ -414,27 +305,68 @@ Rules:
   }
 
   const dbErrors: string[] = []
+  const clubTaskInserts: Array<{
+    club_id: string
+    task_text: string
+    due_date?: string | null
+    due_date_calc?: string | null
+    due_at?: string | null
+    original_due_text?: string | null
+  }> = []
 
-  // Insert tasks
+  // Insert tasks — but first pull out any item that clearly names a club so
+  // it lands on that club's card instead of the main tasks list. Claude is
+  // told to route club action items to club_tasks itself, but this is a
+  // deterministic safety net for when it doesn't.
   if (Array.isArray(parsed.tasks) && parsed.tasks.length) {
-    const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true })
-    const baseRank = (count || 0) + 1
+    const plainTasks: Array<Record<string, unknown>> = []
+    ;(parsed.tasks as Array<Record<string, unknown>>).forEach((t) => {
+      const club = matchClub(`${t.title || ''} ${t.tag || ''} ${t.category || ''}`, clubRows)
+      if (club) {
+        const title = sentenceCaseTaskTitle(t.title) || 'Untitled task'
+        const dueText = enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`)
+        const kind = TASK_KINDS.includes(String(t.kind)) ? String(t.kind) : inferKind(String(t.title || ''), dueText)
+        const deadline = computeDeadline({ kind, dueText, title }, settings)
+        clubTaskInserts.push({ club_id: club.id, task_text: title, ...deadline })
+      } else {
+        plainTasks.push(t)
+      }
+    })
 
-    const { error: taskError } = await supabase.from('tasks').insert(
-      (parsed.tasks as Array<Record<string, unknown>>).map((t, i) => {
-        const deadline = normalizeTaskDeadline(enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`))
-        return {
-          title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
-          category: String(t.category || 'Class'),
-          tag: taskTag(t.tag),
-          ...deadline,
-          priority: t.priority === true,
-          priority_rank: t.priority === true ? baseRank + i : null,
-          source: 'Brain Dump',
+    if (plainTasks.length) {
+      const { data: insertedTasks, error: taskError } = await supabase.from('tasks').insert(
+        plainTasks.map((t, i) => {
+          const tag = taskTag(t.tag)
+          const dueText = enrichDueText(t.due_date, `${t.title || ''} ${text || ''}`)
+          const kind = TASK_KINDS.includes(String(t.kind))
+            ? String(t.kind)
+            : inferKind(String(t.title || ''), dueText)
+          const deadline = computeDeadline({
+            kind,
+            dueText,
+            className: tag || String(t.tag || ''),
+            title: String(t.title || ''),
+          }, settings)
+          return {
+            title: sentenceCaseTaskTitle(t.title) || 'Untitled task',
+            category: String(t.category || 'Class'),
+            tag,
+            kind,
+            ...deadline,
+            source: 'Brain Dump',
+          }
+        })
+      ).select()
+      if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
+
+      // Best-effort: push new reminders to Microsoft To Do right away rather
+      // than waiting for the next scheduled sync-todo pass.
+      if (settings?.microsoft_refresh_token) {
+        for (const task of insertedTasks ?? []) {
+          await pushSingleTaskBestEffort(supabase, getValidAccessToken, settings, task)
         }
-      })
-    )
-    if (taskError) dbErrors.push(`tasks: ${taskError.message}`)
+      }
+    }
   }
 
   // Update or create grade rows using Clark's formal class-name mapping.
@@ -469,19 +401,28 @@ Rules:
     }
   }
 
-  // Insert club tasks — exact club_name match using pre-loaded club rows
+  // Resolve club_name via alias-aware matching (not a strict string match —
+  // "NHS" should still resolve to "National Honor Society"), and merge with
+  // any tasks[] items redirected above because they clearly named a club.
   if (Array.isArray(parsed.club_tasks) && parsed.club_tasks.length) {
     for (const ct of parsed.club_tasks as Array<Record<string, unknown>>) {
       const clubName = String(ct.club_name || '').trim()
-      const clubRow = clubRows.find(c => c.name === clubName)
+      const clubRow = matchClub(clubName, clubRows)
       if (clubRow) {
-        const { error: ctError } = await supabase.from('club_tasks')
-          .insert({ club_id: clubRow.id, task_text: String(ct.task_text || '').trim() })
-        if (ctError) dbErrors.push(`club_tasks(${clubName}): ${ctError.message}`)
+        const taskText = String(ct.task_text || '').trim()
+        const dueText = enrichDueText(ct.due_date, `${taskText} ${text || ''}`)
+        const kind = inferKind(taskText, dueText)
+        const deadline = computeDeadline({ kind, dueText, title: taskText }, settings)
+        clubTaskInserts.push({ club_id: clubRow.id, task_text: taskText, ...deadline })
       } else {
         dbErrors.push(`club_tasks: no club found matching "${clubName}"`)
       }
     }
+  }
+
+  if (clubTaskInserts.length) {
+    const { error: ctError } = await supabase.from('club_tasks').insert(clubTaskInserts)
+    if (ctError) dbErrors.push(`club_tasks: ${ctError.message}`)
   }
 
   // Update club next_meeting — exact club_name match

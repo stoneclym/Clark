@@ -11,13 +11,6 @@ function bufferToBase64(buffer) {
   return btoa(String.fromCharCode(...new Uint8Array(buffer)))
 }
 
-function base64ToBuffer(base64) {
-  const bin = atob(base64)
-  const buf = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i)
-  return buf.buffer
-}
-
 /**
  * Register a new biometric credential on this device.
  * Returns the serialized credential to be stored in Supabase.
@@ -59,10 +52,17 @@ export async function registerBiometric() {
 }
 
 /**
- * Authenticate using a previously registered credential.
- * Returns true if successful.
+ * Authenticate with whatever platform credential this device has for
+ * Clark. Deliberately omits `allowCredentials` — each device (phone,
+ * laptop) registers its own separate resident/discoverable credential via
+ * Settings, and restricting to one remembered credential ID meant only
+ * the single device that most recently registered could ever unlock.
+ * Leaving the allow-list empty lets the OS present whichever credential(s)
+ * exist on the device actually being used (Face ID's own key on the
+ * phone, Touch ID's own key on the laptop) instead of requiring an exact
+ * match against one ID.
  */
-export async function authenticateBiometric(credentialId) {
+export async function authenticateBiometric() {
   if (!window.PublicKeyCredential) {
     throw new Error('WebAuthn not supported in this browser.')
   }
@@ -73,10 +73,6 @@ export async function authenticateBiometric(credentialId) {
     publicKey: {
       challenge,
       rpId: window.location.hostname,
-      allowCredentials: credentialId ? [{
-        id: base64ToBuffer(credentialId),
-        type: 'public-key',
-      }] : [],
       userVerification: 'required',
       timeout: 60000,
     },
